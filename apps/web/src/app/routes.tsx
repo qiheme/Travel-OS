@@ -1,4 +1,4 @@
-import { Link, Outlet, useLoaderData, useParams } from 'react-router-dom';
+import { Link, Outlet, useLoaderData, useOutletContext, useParams } from 'react-router-dom';
 import { findTripById, tripsFixture, type Trip } from '../lib/trips';
 
 type TripsLoaderData = {
@@ -23,14 +23,14 @@ export function AppLayout() {
         <p>Total trips: {trips.length}</p>
       </aside>
       <main className="content">
-        <Outlet />
+        <Outlet context={{ trips } satisfies TripsLoaderData} />
       </main>
     </div>
   );
 }
 
 export function PipelinePage() {
-  const { trips } = useLoaderData() as TripsLoaderData;
+  const { trips } = useOutletContext<TripsLoaderData>();
   return <h2>Pipeline ({trips.filter((trip) => trip.stage !== 'archived').length})</h2>;
 }
 
@@ -43,15 +43,15 @@ export function CalendarPage() {
 }
 
 export function ArchivePage() {
-  const { trips } = useLoaderData() as TripsLoaderData;
+  const { trips } = useOutletContext<TripsLoaderData>();
   const archivedTrips = trips.filter((trip) => trip.stage === 'archived');
   return <h2>Archive ({archivedTrips.length})</h2>;
 }
 
 export function TripDetailPage() {
-  const { trips } = useLoaderData() as TripsLoaderData;
-  const { tripId } = useParams();
-  const trip = tripId ? findTripById(trips, tripId) : undefined;
+  const { trips } = useOutletContext<TripsLoaderData>();
+  const { tripId } = useParams<{ tripId: string }>();
+  const trip = findTripById(trips, tripId);
 
   if (!trip) {
     return <p>Trip not found.</p>;

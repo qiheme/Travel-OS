@@ -43,10 +43,10 @@ describe('route components', () => {
 
   it('renders static sections', async () => {
     renderAt('/app/inbox');
-    expect(await screen.findByText('Inbox')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Inbox' })).toBeInTheDocument();
 
     renderAt('/app/calendar');
-    expect(await screen.findByText('Calendar')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Calendar' })).toBeInTheDocument();
 
     renderAt('/app/archive');
     expect(await screen.findByText('Archive (1)')).toBeInTheDocument();
