@@ -1,0 +1,32 @@
+:root {
+  font-family: Inter, system-ui, sans-serif;
+  color: #1f2937;
+  background: #f8fafc;
+}
+
+body {
+  margin: 0;
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 220px 1fr;
+}
+
+.sidebar {
+  border-right: 1px solid #e2e8f0;
+  padding: 1rem;
+  background: #fff;
+}
+
+.sidebar a {
+  display: block;
+  text-decoration: none;
+  color: #334155;
+  margin-bottom: 0.5rem;
+}
+
+.content {
+  padding: 1rem 1.5rem;
+}
