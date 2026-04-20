@@ -50,7 +50,7 @@ export function ArchivePage() {
 
 export function TripDetailPage() {
   const { trips } = useOutletContext<TripsLoaderData>();
-  const { tripId } = useParams<{ tripId: string }>();
+  const { tripId } = useParams() as { tripId: string };
   const trip = findTripById(trips, tripId);
 
   if (!trip) {
