@@ -3,6 +3,7 @@ import { CATEGORIES } from '../lib/utils';
 import { findTripById } from '../lib/trips';
 import { useApp } from './AppContext';
 import { Icon } from '../components/Icon';
+import { PipelineDashboard } from '../components/PipelineDashboard';
 import type { Trip } from '../lib/types';
 
 type OutletCtx = { trips: Trip[] };
@@ -110,8 +111,7 @@ export function AppLayout() {
 }
 
 export function PipelinePage() {
-  const { trips } = useOutletContext<OutletCtx>();
-  return <h2>Pipeline ({trips.filter((trip) => trip.stage !== 'archived').length})</h2>;
+  return <PipelineDashboard />;
 }
 
 export function InboxPage() {

@@ -38,7 +38,7 @@ describe('route components', () => {
   it('renders pipeline with count', async () => {
     renderAt('/app/pipeline');
     expect(await screen.findByText('Travel OS')).toBeInTheDocument();
-    expect(screen.getByText('Pipeline (8)')).toBeInTheDocument();
+    expect(screen.getByText('Dreaming')).toBeInTheDocument();
     expect(screen.getByText('Quincy')).toBeInTheDocument();
   });
 
