@@ -183,7 +183,10 @@ function KanbanBoard({
   const handleDragStart = (e: React.DragEvent, t: Trip) => {
     setDragTrip(t);
     e.dataTransfer.effectAllowed = 'move';
+<<<<<<< HEAD
     e.dataTransfer.setData('text/plain', t.id); // required for Firefox
+=======
+>>>>>>> e6b8128 (feat: Pipeline view — TripCard, Kanban, MetricsStrip, YearRibbon, InsightsStrip)
   };
   const handleDragEnd = () => { setDragTrip(null); setDropStage(null); };
   const handleDragOver = (e: React.DragEvent, stage: string) => {
