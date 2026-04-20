@@ -5,7 +5,7 @@ describe('trips helpers', () => {
   it('returns only non-archived trips', () => {
     const result = activeTrips(tripsFixture);
     expect(result.every((trip) => trip.stage !== 'archived')).toBe(true);
-    expect(result).toHaveLength(4);
+    expect(result).toHaveLength(8);
   });
 
   it('finds trip by id and returns undefined when absent', () => {

@@ -37,8 +37,8 @@ describe('route components', () => {
   it('renders pipeline with count', async () => {
     renderAt('/app/pipeline');
     expect(await screen.findByText('Travel OS')).toBeInTheDocument();
-    expect(screen.getByText('Pipeline (4)')).toBeInTheDocument();
-    expect(screen.getByText('Total trips: 5')).toBeInTheDocument();
+    expect(screen.getByText('Pipeline (8)')).toBeInTheDocument();
+    expect(screen.getByText('Total trips: 11')).toBeInTheDocument();
   });
 
   it('renders static sections', async () => {
@@ -49,7 +49,7 @@ describe('route components', () => {
     expect(await screen.findByRole('heading', { name: 'Calendar' })).toBeInTheDocument();
 
     renderAt('/app/archive');
-    expect(await screen.findByText('Archive (1)')).toBeInTheDocument();
+    expect(await screen.findByText('Archive (3)')).toBeInTheDocument();
   });
 
   it('renders trip detail and not found state', async () => {
