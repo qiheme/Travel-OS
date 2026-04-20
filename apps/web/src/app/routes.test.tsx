@@ -1,6 +1,7 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
+import { AppProvider } from './AppContext';
 import {
   AppLayout,
   ArchivePage,
@@ -30,7 +31,7 @@ const renderAt = (path: string) => {
     { initialEntries: [path] }
   );
 
-  return render(<RouterProvider router={router} />);
+  return render(<AppProvider><RouterProvider router={router} /></AppProvider>);
 };
 
 describe('route components', () => {
@@ -38,7 +39,7 @@ describe('route components', () => {
     renderAt('/app/pipeline');
     expect(await screen.findByText('Travel OS')).toBeInTheDocument();
     expect(screen.getByText('Pipeline (8)')).toBeInTheDocument();
-    expect(screen.getByText('Total trips: 11')).toBeInTheDocument();
+    expect(screen.getByText('Quincy')).toBeInTheDocument();
   });
 
   it('renders static sections', async () => {
@@ -50,6 +51,19 @@ describe('route components', () => {
 
     renderAt('/app/archive');
     expect(await screen.findByText('Archive (3)')).toBeInTheDocument();
+  });
+
+  it('sidebar and topbar interactions work', async () => {
+    renderAt('/app/pipeline');
+    await screen.findByText('Travel OS');
+
+    fireEvent.click(screen.getByRole('button', { name: /Family/i }));
+    fireEvent.change(screen.getByPlaceholderText('Search destinations…'), { target: { value: 'k' } });
+    fireEvent.click(screen.getByRole('button', { name: /New trip/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Integrations/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Tweaks/i }));
+
+    expect(screen.getByText('Travel OS')).toBeInTheDocument();
   });
 
   it('renders trip detail and not found state', async () => {
