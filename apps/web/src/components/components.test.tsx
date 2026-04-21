@@ -271,7 +271,7 @@ describe('dashboard components', () => {
       ...TRIPS[0],
       id: 'tr-no-cover',
       destination: 'No Cover',
-      cover: undefined,
+      cover: undefined as unknown as Trip['cover'],
       start_date: '2026-04-20',
       end_date: '2026-04-20',
       date_approx: null,
@@ -368,7 +368,7 @@ describe('dashboard components', () => {
     fallbackItem.suggested_trip = 'tr-kyoto';
     const kyotoTrip = TRIPS.find((trip) => trip.id === 'tr-kyoto');
     if (!kyotoTrip) throw new Error('Expected trip fixture tr-kyoto');
-    kyotoTrip.cover = undefined;
+    kyotoTrip.cover = undefined as unknown as Trip['cover'];
 
     noSourceItem.source = undefined as never;
 
@@ -403,7 +403,7 @@ describe('dashboard components', () => {
       stage: 'planning',
       start_date: '2026-04-26',
       end_date: '2026-04-29',
-      cover: undefined,
+      cover: undefined as unknown as Trip['cover'],
     });
     Object.assign(TRIPS.find((trip) => trip.id === 'tr-kyoto')!, {
       stage: 'planning',
