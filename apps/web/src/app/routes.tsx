@@ -180,35 +180,53 @@ export function TripDetailPage() {
   const { trips, tripDetails, updateTrip, togglePacked, toggleBookingStatus } = useApp();
   const { tripId } = useParams() as { tripId: string };
   const trip = findTripById(trips, tripId);
-  const detail = tripDetails[tripId] ?? EMPTY_DETAIL;
-  const [tab, setTab] = useState<TripDetailTab>('overview');
-  const [overviewNotes, setOverviewNotes] = useState('');
-  const [fullNotes, setFullNotes] = useState('');
 
-  useEffect(() => {
-    if (!trip) return;
-    setOverviewNotes(trip.notes);
-    setFullNotes(trip.notes);
-  }, [trip]);
+  if (!trip) {
+    return <p className="trip-missing">Trip not found.</p>;
+  }
 
-  useEffect(() => {
-    if (!tripId || typeof window === 'undefined') return;
-    const saved = window.localStorage.getItem(`travelos:tab:${tripId}`) as TripDetailTab | null;
-    if (saved && TAB_ORDER.some((item) => item.key === saved)) {
-      setTab(saved);
-    } else {
-      setTab('overview');
-    }
-  }, [tripId]);
+  return (
+    <TripDetailContent
+      key={trip.id}
+      trip={trip}
+      tripId={tripId}
+      detail={tripDetails[tripId] ?? EMPTY_DETAIL}
+      updateTrip={updateTrip}
+      togglePacked={togglePacked}
+      toggleBookingStatus={toggleBookingStatus}
+    />
+  );
+}
+
+function getStoredTripTab(tripId: string): TripDetailTab {
+  if (typeof window === 'undefined') return 'overview';
+  const saved = window.localStorage.getItem(`travelos:tab:${tripId}`) as TripDetailTab | null;
+  return saved && TAB_ORDER.some((item) => item.key === saved) ? saved : 'overview';
+}
+
+function TripDetailContent({
+  trip,
+  tripId,
+  detail,
+  updateTrip,
+  togglePacked,
+  toggleBookingStatus,
+}: {
+  trip: Trip;
+  tripId: string;
+  detail: TripDetail;
+  updateTrip: ReturnType<typeof useApp>['updateTrip'];
+  togglePacked: ReturnType<typeof useApp>['togglePacked'];
+  toggleBookingStatus: ReturnType<typeof useApp>['toggleBookingStatus'];
+}) {
+  const [tab, setTab] = useState<TripDetailTab>(() => getStoredTripTab(tripId));
+  const [overviewNotes, setOverviewNotes] = useState(trip.notes);
+  const [fullNotes, setFullNotes] = useState(trip.notes);
 
   useEffect(() => {
     if (!tripId || typeof window === 'undefined') return;
     window.localStorage.setItem(`travelos:tab:${tripId}`, tab);
   }, [tab, tripId]);
-
-  if (!trip) {
-    return <p className="trip-missing">Trip not found.</p>;
-  }
 
   const travelers = trip.travelers
     .map((travelerId) => TRAVELERS.find((traveler) => traveler.id === travelerId))
