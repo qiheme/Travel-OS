@@ -88,10 +88,11 @@ function YearRibbon({ trips, onOpen }: { trips: Trip[]; onOpen: (id: string) => 
         return e >= start && s <= end;
       })
       .map((t) => {
-        const s = new Date(t.start_date! + 'T00:00:00');
-        const e = new Date(t.end_date! + 'T00:00:00');
-        const left = Math.max(0, (daysBetween(start, s) / total) * 100);
-        const width = Math.max(1.2, (daysBetween(s, e) / total) * 100);
+        // Clip to the year window so cross-year trips don't spill outside the ribbon.
+        const s = Math.max(new Date(t.start_date! + 'T00:00:00').getTime(), start.getTime());
+        const e = Math.min(new Date(t.end_date!  + 'T00:00:00').getTime(), end.getTime());
+        const left  = (daysBetween(start, new Date(s)) / total) * 100;
+        const width = Math.max(1.2, (daysBetween(new Date(s), new Date(e)) / total) * 100);
         return { t, left, width, row: 0 };
       })
       .sort((a, b) => a.left - b.left);
@@ -182,6 +183,7 @@ function KanbanBoard({
   const handleDragStart = (e: React.DragEvent, t: Trip) => {
     setDragTrip(t);
     e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', t.id); // required for Firefox
   };
   const handleDragEnd = () => { setDragTrip(null); setDropStage(null); };
   const handleDragOver = (e: React.DragEvent, stage: string) => {
