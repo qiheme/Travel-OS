@@ -1,15 +1,62 @@
-import { NavLink, Outlet, useLocation, useOutletContext, useParams } from 'react-router-dom';
-import { CATEGORIES } from '../lib/utils';
-import { findTripById } from '../lib/trips';
-import { useApp } from './AppContext';
-import { Icon } from '../components/Icon';
-import { PipelineDashboard } from '../components/PipelineDashboard';
-import { InboxDashboard } from '../components/InboxDashboard';
-import { CalendarDashboard } from '../components/CalendarDashboard';
+import { useEffect, useState } from 'react';
+import { Link, NavLink, Outlet, useLocation, useParams } from 'react-router-dom';
+import { BOOKING_ICONS, Icon } from '../components/Icon';
 import { ArchiveDashboard } from '../components/ArchiveDashboard';
-import type { Trip } from '../lib/types';
+import { CalendarDashboard } from '../components/CalendarDashboard';
+import { InboxDashboard } from '../components/InboxDashboard';
+import { PipelineDashboard } from '../components/PipelineDashboard';
+import { useApp } from './AppContext';
+import { TODAY, TRAVELERS } from '../lib/data';
+import { findTripById } from '../lib/trips';
+import {
+  CAT_MAP,
+  CATEGORIES,
+  coverStyle,
+  daysBetween,
+  fmtDate,
+  fmtDateRange,
+  fmtMoney,
+} from '../lib/utils';
+import type { Booking, BookingSource, BookingStatus, PackingCategory, Trip, TripDetail, TripDocument } from '../lib/types';
 
 type OutletCtx = { trips: Trip[] };
+type TripDetailTab = 'overview' | 'itinerary' | 'bookings' | 'budget' | 'packing' | 'documents' | 'notes';
+
+const EMPTY_DETAIL: TripDetail = {
+  itinerary: [],
+  bookings: [],
+  budget_breakdown: [],
+  packing: [],
+  documents: [],
+};
+
+const TAB_ORDER: { key: TripDetailTab; label: string }[] = [
+  { key: 'overview', label: 'Overview' },
+  { key: 'itinerary', label: 'Itinerary' },
+  { key: 'bookings', label: 'Bookings' },
+  { key: 'budget', label: 'Budget' },
+  { key: 'packing', label: 'Packing' },
+  { key: 'documents', label: 'Documents' },
+  { key: 'notes', label: 'Notes' },
+];
+
+const PACKING_LABELS: Record<PackingCategory, string> = {
+  clothing: 'Clothing',
+  documents: 'Documents',
+  electronics: 'Electronics',
+  toiletries: 'Toiletries',
+  other: 'Other',
+};
+
+const SOURCE_LABELS: Record<BookingSource | 'unknown', string> = {
+  gmail: 'Gmail',
+  email: 'Email',
+  manual: 'Manual',
+  api: 'API',
+  viator: 'Viator',
+  extension: 'Extension',
+  unknown: 'Unknown',
+};
 
 // No-op kept for router.tsx compatibility; AppLayout reads from AppContext instead.
 export const tripsLoader = () => ({});
@@ -25,13 +72,13 @@ export function AppLayout() {
   const segment = pathname.split('/')[2];
 
   const pipelineCount = trips.filter((t) => t.stage !== 'archived').length;
-  const archiveCount  = trips.filter((t) => t.stage === 'archived').length;
+  const archiveCount = trips.filter((t) => t.stage === 'archived').length;
 
   const topbarContent: Record<string, { title: string; subtitle: string }> = {
     pipeline: { title: 'Good afternoon, Quincy.', subtitle: 'Your travel pipeline at a glance' },
-    inbox:    { title: 'Inbox.',                  subtitle: `Forwarded confirmations · ${inbox.length} items` },
-    calendar: { title: 'Calendar.',               subtitle: 'Everything in motion on one page' },
-    archive:  { title: 'Archive.',                subtitle: "Every trip you've completed" },
+    inbox: { title: 'Inbox.', subtitle: `Forwarded confirmations · ${inbox.length} items` },
+    calendar: { title: 'Calendar.', subtitle: 'Everything in motion on one page' },
+    archive: { title: 'Archive.', subtitle: "Every trip you've completed" },
   };
   const topbar = topbarContent[segment];
 
@@ -130,19 +177,480 @@ export function ArchivePage() {
 }
 
 export function TripDetailPage() {
-  const { trips } = useOutletContext<OutletCtx>();
+  const { trips, tripDetails, updateTrip, togglePacked, toggleBookingStatus } = useApp();
   const { tripId } = useParams() as { tripId: string };
   const trip = findTripById(trips, tripId);
+  const detail = tripDetails[tripId] ?? EMPTY_DETAIL;
+  const [tab, setTab] = useState<TripDetailTab>('overview');
+  const [overviewNotes, setOverviewNotes] = useState('');
+  const [fullNotes, setFullNotes] = useState('');
+
+  useEffect(() => {
+    if (!trip) return;
+    setOverviewNotes(trip.notes);
+    setFullNotes(trip.notes);
+  }, [trip]);
+
+  useEffect(() => {
+    if (!tripId || typeof window === 'undefined') return;
+    const saved = window.localStorage.getItem(`travelos:tab:${tripId}`) as TripDetailTab | null;
+    if (saved && TAB_ORDER.some((item) => item.key === saved)) {
+      setTab(saved);
+    } else {
+      setTab('overview');
+    }
+  }, [tripId]);
+
+  useEffect(() => {
+    if (!tripId || typeof window === 'undefined') return;
+    window.localStorage.setItem(`travelos:tab:${tripId}`, tab);
+  }, [tab, tripId]);
 
   if (!trip) {
-    return <p>Trip not found.</p>;
+    return <p className="trip-missing">Trip not found.</p>;
   }
 
+  const travelers = trip.travelers
+    .map((travelerId) => TRAVELERS.find((traveler) => traveler.id === travelerId))
+    .filter((traveler): traveler is (typeof TRAVELERS)[number] => Boolean(traveler));
+  const countdown = trip.start_date ? daysBetween(TODAY, trip.start_date) : null;
+  const bookingDone = detail.bookings.filter((booking) => booking.status === 'done').length;
+  const bookingPct = detail.bookings.length ? Math.round((bookingDone / detail.bookings.length) * 100) : 0;
+  const packedCount = detail.packing.filter((item) => item.packed).length;
+  const packingPct = detail.packing.length ? Math.round((packedCount / detail.packing.length) * 100) : 0;
+  const itineraryPlanned = detail.itinerary.filter((day) => day.activities.length > 0).length;
+  const budgetPct = trip.budget_total ? Math.min(100, Math.round((trip.budget_spent / trip.budget_total) * 100)) : 0;
+
+  const saveNotes = (value: string) => {
+    setOverviewNotes(value);
+    setFullNotes(value);
+    if (value !== trip.notes) updateTrip(trip.id, { notes: value });
+  };
+
   return (
-    <section>
-      <h2>{trip.destination}</h2>
-      <p>{trip.country}</p>
-      <p>Stage: {trip.stage}</p>
+    <section className="trip-detail">
+      <div className="trip-hero">
+        <div className="trip-hero-bg" style={coverStyle(trip.cover)} />
+        <div className="trip-hero-content">
+          <Link className="trip-back" to="/app/pipeline">
+            <Icon.ChevronLeft /> All trips
+          </Link>
+          <div className="trip-hero-row">
+            <div>
+              <p className="trip-kicker">{trip.region}</p>
+              <h2>{trip.destination}</h2>
+              <p className="trip-subtitle">
+                <span>{trip.country}</span>
+                <span>•</span>
+                <span>{trip.date_approx ?? fmtDateRange(trip.start_date, trip.end_date) ?? 'Dates TBD'}</span>
+              </p>
+            </div>
+            <div className="trip-countdown">
+              {countdown === null && <><strong>Someday</strong><span>{trip.date_approx ?? 'Choose dates'}</span></>}
+              {countdown !== null && countdown < 0 && <><strong>Completed</strong><span>{fmtDate(trip.end_date, { month: 'short', year: 'numeric' })}</span></>}
+              {countdown !== null && countdown >= 0 && <><strong>{countdown}</strong><span>{countdown === 1 ? 'day to go' : 'days to go'}</span></>}
+            </div>
+          </div>
+          <div className="trip-stats">
+            <TripStat label="Nights" value={String(trip.nights)} />
+            <TripStat label="Travelers" value={String(travelers.length)} subvalue={travelers.map((traveler) => traveler.name).join(', ')} />
+            <TripStat
+              label="Budget"
+              value={`${fmtMoney(trip.budget_spent)} / ${fmtMoney(trip.budget_total)}`}
+              progress={budgetPct}
+            />
+            <TripStat label="Bookings" value={`${bookingPct}% complete`} subvalue={`${bookingDone} of ${detail.bookings.length} done`} />
+          </div>
+        </div>
+      </div>
+
+      <div className="trip-tabs" role="tablist" aria-label="Trip detail tabs">
+        {TAB_ORDER.map((item) => (
+          <button
+            key={item.key}
+            className={`trip-tab${tab === item.key ? ' active' : ''}`}
+            onClick={() => setTab(item.key)}
+            role="tab"
+            aria-selected={tab === item.key}
+          >
+            {item.label}
+            {item.key === 'itinerary' && <span className="trip-tab-count">{detail.itinerary.length}</span>}
+            {item.key === 'bookings' && <span className="trip-tab-count">{detail.bookings.length}</span>}
+            {item.key === 'packing' && <span className="trip-tab-count">{packedCount}/{detail.packing.length}</span>}
+            {item.key === 'documents' && <span className="trip-tab-count">{detail.documents.length}</span>}
+          </button>
+        ))}
+      </div>
+
+      <div className="trip-panel">
+        {tab === 'overview' && (
+          <div className="trip-overview-grid">
+            <section className="trip-card">
+              <div className="section-heading">
+                <h3>Overview</h3>
+                <p>Trip notes and overall progress.</p>
+              </div>
+              <label className="field-label" htmlFor="trip-overview-notes">Trip notes</label>
+              <textarea
+                id="trip-overview-notes"
+                className="trip-textarea"
+                value={overviewNotes}
+                onChange={(e) => setOverviewNotes(e.target.value)}
+                onBlur={(e) => saveNotes(e.target.value)}
+              />
+              <div className="progress-list">
+                <ProgressRow label="Bookings" value={`${bookingDone}/${detail.bookings.length} confirmed`} progress={bookingPct} />
+                <ProgressRow label="Packing" value={`${packedCount}/${detail.packing.length} packed`} progress={packingPct} />
+                <ProgressRow label="Itinerary" value={`${itineraryPlanned}/${detail.itinerary.length} days planned`} progress={detail.itinerary.length ? Math.round((itineraryPlanned / detail.itinerary.length) * 100) : 0} />
+              </div>
+            </section>
+
+            <aside className="trip-card trip-sidebar-card">
+              <div className="section-heading">
+                <h3>Categories</h3>
+                <p>How this trip is tagged.</p>
+              </div>
+              <div className="trip-category-list">
+                {trip.categories.map((category) => (
+                  <span key={category} className="trip-category-chip">
+                    <span className="cat-pip" style={{ background: CAT_MAP[category].color }} />
+                    {CAT_MAP[category].label}
+                  </span>
+                ))}
+              </div>
+
+              <div className="section-heading section-heading-compact">
+                <h3>Quick actions</h3>
+              </div>
+              <div className="trip-quick-actions">
+                <button className="btn ghost" onClick={() => setTab('bookings')}>
+                  <Icon.Plus /> Review bookings
+                </button>
+                <button className="btn ghost" onClick={() => setTab('packing')}>
+                  <Icon.Check /> Update packing
+                </button>
+                <button className="btn ghost" onClick={() => setTab('documents')}>
+                  <Icon.Notes /> Check documents
+                </button>
+              </div>
+            </aside>
+          </div>
+        )}
+
+        {tab === 'itinerary' && (
+          <section className="trip-card">
+            <div className="section-heading">
+              <h3>Itinerary</h3>
+              <p>Day-by-day plan for the trip.</p>
+            </div>
+            <div className="day-list">
+              {detail.itinerary.map((day) => (
+                <article key={day.day} className="day-card">
+                  <div className="day-meta">
+                    <div className="day-num">Day {day.day}</div>
+                    <div className="day-date">{fmtDate(day.date, { weekday: 'short', month: 'short', day: 'numeric' })}</div>
+                  </div>
+                  <div className="day-body">
+                    <h4>{day.summary}</h4>
+                    {day.activities.length > 0 ? (
+                      <div className="activity-list">
+                        {day.activities.map((activity, index) => (
+                          <div key={`${day.day}-${index}`} className="activity-row">
+                            <div className="activity-time">{activity.time ?? 'Open'}</div>
+                            <div className="activity-copy">
+                              <div className="activity-title">{activity.title}</div>
+                              <div className="activity-subtitle">
+                                {activity.location ?? 'Location TBD'}
+                                {activity.duration ? ` • ${Math.round(activity.duration / 60)}h` : ''}
+                              </div>
+                            </div>
+                            <div className="activity-cost">{activity.cost ? fmtMoney(activity.cost) : '—'}</div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="trip-empty-inline">
+                        <p>No activities planned yet.</p>
+                        <button className="btn ghost">Add activity</button>
+                      </div>
+                    )}
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {tab === 'bookings' && <BookingsPanel detail={detail} tripId={trip.id} onToggleStatus={toggleBookingStatus} />}
+
+        {tab === 'budget' && (
+          <section className="trip-budget-grid">
+            <div className="trip-card budget-summary-card">
+              <div className="section-heading">
+                <h3>Budget</h3>
+                <p>Total spend versus planned budget.</p>
+              </div>
+              <div className="budget-ring" style={{ ['--budget-pct' as string]: `${budgetPct}%` }}>
+                <div>
+                  <strong>{budgetPct}%</strong>
+                  <span>spent</span>
+                </div>
+              </div>
+              <div className="budget-summary">
+                <strong>{fmtMoney(trip.budget_spent)}</strong>
+                <span>of {fmtMoney(trip.budget_total)}</span>
+              </div>
+            </div>
+            <div className="trip-card">
+              <div className="section-heading">
+                <h3>By category</h3>
+                <p>How spend is distributed.</p>
+              </div>
+              <div className="budget-lines">
+                {detail.budget_breakdown.map((row) => {
+                  const rowPct = row.total ? Math.min(100, Math.round((row.spent / row.total) * 100)) : 0;
+                  return (
+                    <div key={row.category} className="budget-line">
+                      <div className="budget-line-head">
+                        <span>{row.category}</span>
+                        <strong>{fmtMoney(row.spent)} / {fmtMoney(row.total)}</strong>
+                      </div>
+                      <div className="mini-progress">
+                        <div style={{ width: `${rowPct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {tab === 'packing' && (
+          <section className="trip-card">
+            <div className="packing-header">
+              <div className="section-heading">
+                <h3>Packing</h3>
+                <p>{packedCount} of {detail.packing.length} items packed.</p>
+              </div>
+              <div className="packing-progress">
+                <div className="mini-progress">
+                  <div style={{ width: `${packingPct}%` }} />
+                </div>
+              </div>
+            </div>
+            <div className="packing-grid">
+              {Object.entries(groupPacking(detail)).map(([category, items]) => (
+                <div key={category} className="packing-card">
+                  <h4>{PACKING_LABELS[category as PackingCategory]}</h4>
+                  {items.map((item) => (
+                    <button
+                      key={`${category}-${item.index}`}
+                      className={`packing-item${item.packed ? ' done' : ''}`}
+                      onClick={() => togglePacked(trip.id, item.index)}
+                    >
+                      <span className="packing-box">{item.packed && <Icon.Check />}</span>
+                      <span>{item.item}</span>
+                      <span className="packing-qty">×{item.qty}</span>
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {tab === 'documents' && (
+          <section className="trip-card">
+            <div className="section-heading">
+              <h3>Documents</h3>
+              <p>Passports, visas, and confirmations for this trip.</p>
+            </div>
+            <div className="document-grid">
+              {detail.documents.map((document) => (
+                <DocumentCard key={`${document.type}-${document.title}`} document={document} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {tab === 'notes' && (
+          <section className="trip-card">
+            <div className="section-heading">
+              <h3>Notes</h3>
+              <p>Long-form notes saved back to the trip record.</p>
+            </div>
+            <textarea
+              className="trip-textarea trip-textarea-large"
+              aria-label="Full trip notes"
+              value={fullNotes}
+              onChange={(e) => setFullNotes(e.target.value)}
+              onBlur={(e) => saveNotes(e.target.value)}
+            />
+          </section>
+        )}
+      </div>
     </section>
   );
+}
+
+function TripStat({
+  label,
+  value,
+  subvalue,
+  progress,
+}: {
+  label: string;
+  value: string;
+  subvalue?: string;
+  progress?: number;
+}) {
+  return (
+    <div className="trip-stat">
+      <span>{label}</span>
+      <strong>{value}</strong>
+      {subvalue && <small>{subvalue}</small>}
+      {progress !== undefined && (
+        <div className="mini-progress">
+          <div style={{ width: `${progress}%` }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ProgressRow({ label, value, progress }: { label: string; value: string; progress: number }) {
+  return (
+    <div className="progress-row">
+      <div>
+        <strong>{label}</strong>
+        <span>{value}</span>
+      </div>
+      <div className="mini-progress">
+        <div style={{ width: `${progress}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function BookingsPanel({
+  detail,
+  tripId,
+  onToggleStatus,
+}: {
+  detail: TripDetail;
+  tripId: string;
+  onToggleStatus: (tripId: string, idx: number, status: string) => void;
+}) {
+  const [categoryFilter, setCategoryFilter] = useState<'all' | Booking['category']>('all');
+  const [sourceFilter, setSourceFilter] = useState<'all' | BookingSource>('all');
+  const bookings = detail.bookings.map((booking, index) => ({ ...booking, index }));
+
+  const visibleBookings = bookings.filter((booking) => {
+    if (categoryFilter !== 'all' && booking.category !== categoryFilter) return false;
+    if (sourceFilter !== 'all' && booking.source !== sourceFilter) return false;
+    return true;
+  });
+
+  const categories = Array.from(new Set(bookings.map((booking) => booking.category)));
+  const sources = Array.from(new Set(bookings.map((booking) => booking.source).filter(Boolean))) as BookingSource[];
+
+  return (
+    <section className="trip-card">
+      <div className="section-heading">
+        <h3>Bookings</h3>
+        <p>Toggle booking progress and filter by category or source.</p>
+      </div>
+      <div className="filter-row">
+        <div className="chip-row">
+          <button className={`filter-chip${categoryFilter === 'all' ? ' active' : ''}`} onClick={() => setCategoryFilter('all')}>All categories</button>
+          {categories.map((category) => (
+            <button
+              key={category}
+              className={`filter-chip${categoryFilter === category ? ' active' : ''}`}
+              onClick={() => setCategoryFilter(category)}
+            >
+              {category}
+            </button>
+          ))}
+        </div>
+        <div className="chip-row">
+          <button className={`filter-chip${sourceFilter === 'all' ? ' active' : ''}`} onClick={() => setSourceFilter('all')}>All sources</button>
+          {sources.map((source) => (
+            <button
+              key={source}
+              className={`filter-chip${sourceFilter === source ? ' active' : ''}`}
+              onClick={() => setSourceFilter(source)}
+            >
+              {SOURCE_LABELS[source]}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="booking-table">
+        <div className="booking-table-head">
+          <span>Status</span>
+          <span>Booking</span>
+          <span>Vendor</span>
+          <span>Confirmation</span>
+          <span>Cost</span>
+        </div>
+        {visibleBookings.map((booking) => {
+          const BookingIcon = BOOKING_ICONS[booking.category];
+          const next = nextBookingStatus(booking.status);
+          return (
+            <div className="booking-row" key={`${booking.title}-${booking.index}`}>
+              <button
+                className={`booking-status booking-status-${booking.status}`}
+                onClick={() => onToggleStatus(tripId, booking.index, next)}
+                aria-label={`Set ${booking.title} to ${next}`}
+              >
+                {booking.status === 'done' ? <Icon.Check /> : booking.status === 'pending' ? <Icon.Clock /> : null}
+              </button>
+              <div className="booking-primary">
+                <div className="booking-title"><BookingIcon /> {booking.title}</div>
+                <div className="booking-subtitle">
+                  {booking.travel_date ? fmtDate(booking.travel_date, { month: 'short', day: 'numeric', year: 'numeric' }) : 'Date TBD'}
+                </div>
+              </div>
+              <div className="booking-secondary">
+                <span>{booking.vendor ?? 'Unassigned'}</span>
+                <span className="source-chip">{SOURCE_LABELS[booking.source ?? 'unknown']}</span>
+              </div>
+              <code className="booking-code">{booking.confirmation ?? '—'}</code>
+              <div className="booking-cost">{booking.cost ? fmtMoney(booking.cost) : '—'}</div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function DocumentCard({ document }: { document: TripDocument }) {
+  const expiryDays = document.expiry ? daysBetween(TODAY, document.expiry) : null;
+  const warn = expiryDays !== null && expiryDays < 183;
+
+  return (
+    <article className={`document-card${warn ? ' warning' : ''}`}>
+      <span className="document-type">{document.type}</span>
+      <strong>{document.title}</strong>
+      <span>{document.expiry ? `Expires ${fmtDate(document.expiry, { month: 'short', day: 'numeric', year: 'numeric' })}` : 'No expiry date'}</span>
+      {warn && <em>Renew soon: under 6 months remaining.</em>}
+    </article>
+  );
+}
+
+function groupPacking(detail: TripDetail) {
+  return detail.packing.reduce<Record<string, Array<TripDetail['packing'][number] & { index: number }>>>((acc, item, index) => {
+    if (!acc[item.category]) acc[item.category] = [];
+    acc[item.category].push({ ...item, index });
+    return acc;
+  }, {});
+}
+
+function nextBookingStatus(status: BookingStatus): BookingStatus {
+  if (status === 'todo') return 'pending';
+  if (status === 'pending') return 'done';
+  return 'todo';
 }
