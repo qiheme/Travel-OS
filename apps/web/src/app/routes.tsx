@@ -4,6 +4,9 @@ import { findTripById } from '../lib/trips';
 import { useApp } from './AppContext';
 import { Icon } from '../components/Icon';
 import { PipelineDashboard } from '../components/PipelineDashboard';
+import { InboxDashboard } from '../components/InboxDashboard';
+import { CalendarDashboard } from '../components/CalendarDashboard';
+import { ArchiveDashboard } from '../components/ArchiveDashboard';
 import type { Trip } from '../lib/types';
 
 type OutletCtx = { trips: Trip[] };
@@ -115,17 +118,15 @@ export function PipelinePage() {
 }
 
 export function InboxPage() {
-  return <h2>Inbox</h2>;
+  return <InboxDashboard />;
 }
 
 export function CalendarPage() {
-  return <h2>Calendar</h2>;
+  return <CalendarDashboard />;
 }
 
 export function ArchivePage() {
-  const { trips } = useOutletContext<OutletCtx>();
-  const archivedTrips = trips.filter((trip) => trip.stage === 'archived');
-  return <h2>Archive ({archivedTrips.length})</h2>;
+  return <ArchiveDashboard />;
 }
 
 export function TripDetailPage() {
