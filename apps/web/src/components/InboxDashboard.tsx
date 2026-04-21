@@ -132,7 +132,10 @@ function InboxRow({
             </div>
           </>
         ) : (
-          <button className="btn" style={{ padding: '6px 12px' }}>Pick trip…</button>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button className="btn primary" style={{ padding: '6px 12px' }} disabled>Pick trip…</button>
+            <button className="btn" style={{ padding: '6px 12px' }} onClick={() => onDismiss(item.id)}>Dismiss</button>
+          </div>
         )}
       </div>
     </div>
