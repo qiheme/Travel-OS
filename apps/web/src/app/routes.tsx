@@ -199,6 +199,7 @@ export function TripDetailPage() {
 }
 
 function getStoredTripTab(tripId: string): TripDetailTab {
+  /* v8 ignore next -- browser-only localStorage guard */
   if (typeof window === 'undefined') return 'overview';
   const saved = window.localStorage.getItem(`travelos:tab:${tripId}`) as TripDetailTab | null;
   return saved && TAB_ORDER.some((item) => item.key === saved) ? saved : 'overview';
@@ -224,6 +225,7 @@ function TripDetailContent({
   const [fullNotes, setFullNotes] = useState(trip.notes);
 
   useEffect(() => {
+    /* v8 ignore next -- browser-only localStorage guard */
     if (!tripId || typeof window === 'undefined') return;
     window.localStorage.setItem(`travelos:tab:${tripId}`, tab);
   }, [tab, tripId]);
