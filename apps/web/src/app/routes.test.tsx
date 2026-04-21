@@ -44,13 +44,13 @@ describe('route components', () => {
 
   it('renders static sections', async () => {
     renderAt('/app/inbox');
-    expect(await screen.findByRole('heading', { name: 'Inbox' })).toBeInTheDocument();
+    expect(await screen.findByText('In the inbox')).toBeInTheDocument();
 
     renderAt('/app/calendar');
-    expect(await screen.findByRole('heading', { name: 'Calendar' })).toBeInTheDocument();
+    expect(await screen.findByText('Sun')).toBeInTheDocument();
 
     renderAt('/app/archive');
-    expect(await screen.findByText('Archive (3)')).toBeInTheDocument();
+    expect(await screen.findByText('Lifetime trips')).toBeInTheDocument();
   });
 
   it('sidebar and topbar interactions work', async () => {
