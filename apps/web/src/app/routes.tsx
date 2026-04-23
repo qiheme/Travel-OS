@@ -384,7 +384,7 @@ function TripDetailContent({
                                 {activity.duration ? ` • ${Math.round(activity.duration / 60)}h` : ''}
                               </div>
                             </div>
-                            <div className="activity-cost">{activity.cost ? fmtMoney(activity.cost) : '—'}</div>
+                            <div className="activity-cost">{activity.cost != null ? fmtMoney(activity.cost) : '—'}</div>
                           </div>
                         ))}
                       </div>
@@ -638,7 +638,7 @@ function BookingsPanel({
                 <span className="source-chip">{SOURCE_LABELS[booking.source ?? 'unknown']}</span>
               </div>
               <code className="booking-code">{booking.confirmation ?? '—'}</code>
-              <div className="booking-cost">{booking.cost ? fmtMoney(booking.cost) : '—'}</div>
+              <div className="booking-cost">{booking.cost != null ? fmtMoney(booking.cost) : '—'}</div>
             </div>
           );
         })}

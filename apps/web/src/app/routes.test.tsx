@@ -101,6 +101,7 @@ describe('route components', () => {
     expect(screen.getByText('Arrive Lisbon')).toBeInTheDocument();
     expect(screen.getAllByText('No activities planned yet.').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Location TBD').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('$0').length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole('tab', { name: /Budget/i }));
     expect(screen.getByText('By category')).toBeInTheDocument();
@@ -121,6 +122,7 @@ describe('route components', () => {
     expect(screen.getByText('Unassigned')).toBeInTheDocument();
     expect(screen.getAllByText('Unknown').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Date TBD').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('$0').length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole('button', { name: /lodging/i }));
     expect(screen.getByText('Memmo Alfama (6 nights)')).toBeInTheDocument();
