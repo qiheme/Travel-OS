@@ -34,6 +34,14 @@ Never ship implementation code that isn't covered by a test written in the red p
 
 The project enforces **100% branch coverage** via Vitest v8. A push that drops any metric below 100% will fail CI. If a branch is genuinely untestable (defensive guard, environment-specific path), annotate it with `/* v8 ignore next */` and add a comment explaining why.
 
+## Issues and PRs
+
+Every piece of work must be tracked:
+
+1. **Open an issue first** — if no issue exists for the task, create one before writing any code. The issue is the canonical description of the work.
+2. **Reference the issue in every commit** — use `type(#N): description` format (e.g. `feat(#7): add AddTripModal wizard`).
+3. **Close the issue on merge** — add `Closes #N` to the PR description body so GitHub automatically closes the issue when the PR merges. Never leave an implemented issue open.
+
 ## Conventions
 
 - TypeScript strict mode — no `any`, no non-null assertions without a comment

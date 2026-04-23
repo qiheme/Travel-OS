@@ -18,6 +18,12 @@ Never suggest implementation code without a corresponding test written beforehan
 
 100% branch coverage is enforced. `npm test` will fail if any metric drops below 100%. Annotate genuinely untestable branches with `/* v8 ignore next */` and explain why in a comment.
 
+## Issues and PRs
+
+- **Open an issue for every task** — if no GitHub issue exists, create one before writing code.
+- **Reference the issue in every commit** — format: `type(#N): description`.
+- **Close the issue on merge** — include `Closes #N` in the PR description body so GitHub closes the issue automatically when the PR merges.
+
 ## Project conventions
 
 - All global state via `useApp()` — do not introduce local state for data that belongs in `AppContext`
