@@ -61,10 +61,16 @@ const SOURCE_LABELS: Record<BookingSource | 'unknown', string> = {
 // No-op kept for router.tsx compatibility; AppLayout reads from AppContext instead.
 export const tripsLoader = () => ({});
 
+export function greeting(h = new Date().getHours()) {
+  if (h < 12) return 'Good morning';
+  if (h < 18) return 'Good afternoon';
+  return 'Good evening';
+}
+
 export function AppLayout() {
   const {
     trips, inbox, search, setSearch,
-    toggleCategoryFilter,
+    categoryFilter, toggleCategoryFilter,
     tweaksOpen, setShowModal, setShowIntegrations, setTweaksOpen,
   } = useApp();
 
@@ -74,8 +80,18 @@ export function AppLayout() {
   const pipelineCount = trips.filter((t) => t.stage !== 'archived').length;
   const archiveCount = trips.filter((t) => t.stage === 'archived').length;
 
+  const soonCount = trips.filter((t) => {
+    if (!t.start_date) return false;
+    const d = daysBetween(TODAY, t.start_date);
+    return d >= 0 && d <= 30;
+  }).length;
+
+  const todayLabel = TODAY.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+  const soonLabel = /* v8 ignore next */ soonCount === 1 ? `${soonCount} trip within 30 days` : `${soonCount} trips within 30 days`;
+
   const topbarContent: Record<string, { title: string; subtitle: string }> = {
-    pipeline: { title: 'Good afternoon, Quincy.', subtitle: 'Your travel pipeline at a glance' },
+    pipeline: { title: `${greeting()}, Quincy.`, subtitle: `${todayLabel} · ${soonLabel}` },
     inbox: { title: 'Inbox.', subtitle: `Forwarded confirmations · ${inbox.length} items` },
     calendar: { title: 'Calendar.', subtitle: 'Everything in motion on one page' },
     archive: { title: 'Archive.', subtitle: "Every trip you've completed" },
@@ -108,8 +124,14 @@ export function AppLayout() {
         {CATEGORIES.map((c) => {
           const n = trips.filter((t) => t.categories.includes(c.key) && t.stage !== 'archived').length;
           if (n === 0) return null;
+          const active = categoryFilter.includes(c.key);
           return (
-            <button key={c.key} className="nav-item" onClick={() => toggleCategoryFilter(c.key)}>
+            <button
+              key={c.key}
+              className="nav-item"
+              onClick={() => toggleCategoryFilter(c.key)}
+              style={active ? { background: 'var(--divider)' } : undefined}
+            >
               <span className="cat-pip" style={{ background: c.color, width: 10, height: 10 }} />
               {c.label} <span className="count">{n}</span>
             </button>
@@ -122,6 +144,9 @@ export function AppLayout() {
         </button>
         <button className="nav-item" onClick={() => setTweaksOpen(!tweaksOpen)}>
           <Icon.Sliders /> Tweaks
+        </button>
+        <button className="nav-item">
+          <Icon.Settings /> Settings
         </button>
 
         <div className="sidebar-footer">

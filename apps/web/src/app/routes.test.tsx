@@ -10,6 +10,7 @@ import {
   InboxPage,
   PipelinePage,
   TripDetailPage,
+  greeting,
   tripsLoader
 } from './routes';
 
@@ -30,6 +31,17 @@ const renderAt = (path: string, tripPath = 'trip/:tripId') => {
     </AppProvider>
   );
 };
+
+describe('greeting helper', () => {
+  it('returns morning, afternoon, and evening by hour', () => {
+    expect(greeting(0)).toBe('Good morning');
+    expect(greeting(11)).toBe('Good morning');
+    expect(greeting(12)).toBe('Good afternoon');
+    expect(greeting(17)).toBe('Good afternoon');
+    expect(greeting(18)).toBe('Good evening');
+    expect(greeting(23)).toBe('Good evening');
+  });
+});
 
 describe('route components', () => {
   it('returns an empty trips loader payload', () => {
