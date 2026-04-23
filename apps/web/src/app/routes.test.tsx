@@ -10,6 +10,8 @@ import {
   InboxPage,
   PipelinePage,
   TripDetailPage,
+  greeting,
+  localDateLabel,
   tripsLoader
 } from './routes';
 
@@ -30,6 +32,26 @@ const renderAt = (path: string, tripPath = 'trip/:tripId') => {
     </AppProvider>
   );
 };
+
+describe('localDateLabel', () => {
+  it('formats a UTC-midnight date using calendar date, not local timezone shift', () => {
+    // new Date('YYYY-MM-DD') is UTC midnight — would shift back a day in negative-offset zones
+    expect(localDateLabel(new Date('2026-04-20'))).toBe('April 20, 2026');
+    expect(localDateLabel(new Date('2026-01-01'))).toBe('January 1, 2026');
+    expect(localDateLabel(new Date('2026-12-31'))).toBe('December 31, 2026');
+  });
+});
+
+describe('greeting helper', () => {
+  it('returns morning, afternoon, and evening by hour', () => {
+    expect(greeting(0)).toBe('Good morning');
+    expect(greeting(11)).toBe('Good morning');
+    expect(greeting(12)).toBe('Good afternoon');
+    expect(greeting(17)).toBe('Good afternoon');
+    expect(greeting(18)).toBe('Good evening');
+    expect(greeting(23)).toBe('Good evening');
+  });
+});
 
 describe('route components', () => {
   it('returns an empty trips loader payload', () => {
