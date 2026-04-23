@@ -42,6 +42,14 @@ Every piece of work must be tracked:
 2. **Reference the issue in every commit** — use `type(#N): description` format (e.g. `feat(#7): add AddTripModal wizard`).
 3. **Close the issue on merge** — add `Closes #N` to the PR description body so GitHub automatically closes the issue when the PR merges. Never leave an implemented issue open.
 
+## Responding to PR review comments
+
+When addressing feedback on a pull request:
+
+1. **Reply to the comment** — briefly explain what was changed and why.
+2. **React with an emoji** — 👍 if the feedback was correct/helpful, 👎 if it was incorrect or not applicable (with a short explanation).
+3. **Resolve the conversation** — mark the thread as resolved once the fix is pushed.
+
 ## Conventions
 
 - TypeScript strict mode — no `any`, no non-null assertions without a comment
