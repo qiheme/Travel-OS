@@ -105,6 +105,7 @@ function YearRibbon({ trips, onOpen }: { trips: Trip[]; onOpen: (id: string) => 
         if (!conflict) { b.row = r; row.push(b); return true; }
         return false;
       });
+      /* v8 ignore next -- defensive fallback when both overlap rows are occupied */
       if (!placed) { b.row = 0; rows[0].push(b); }
     });
     return raw;
@@ -195,6 +196,7 @@ function KanbanBoard({
   };
   const handleDrop = (e: React.DragEvent, stage: string) => {
     e.preventDefault();
+    /* v8 ignore next -- same-stage/no-drag drops are harmless defensive guards */
     if (dragTrip && dragTrip.stage !== stage) onMove(dragTrip.id, dragTrip.stage !== stage ? stage as Trip['stage'] : dragTrip.stage);
     setDragTrip(null);
     setDropStage(null);

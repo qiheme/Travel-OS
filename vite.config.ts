@@ -15,7 +15,7 @@ export default defineConfig({
         functions: 100,
         lines: 100
       },
-      include: ['apps/web/src/app/**/*.{ts,tsx}', 'apps/web/src/lib/**/*.ts'],
+      include: ['apps/web/src/app/**/*.{ts,tsx}', 'apps/web/src/components/**/*.{ts,tsx}', 'apps/web/src/lib/**/*.ts'],
       exclude: [
         '**/*.test.{ts,tsx}',
         'apps/web/src/lib/types.ts',
