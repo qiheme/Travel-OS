@@ -205,7 +205,14 @@ describe('route components', () => {
     TRIPS.push(customTrip, oneDayTrip);
     TRIP_DETAILS[customTrip.id] = {
       itinerary: [],
-      bookings: [],
+      bookings: [
+        {
+          category: 'other',
+          title: 'Mystery booking',
+          status: 'todo',
+          cost: undefined as never,
+        },
+      ],
       budget_breakdown: [{ category: 'Misc', total: 0, spent: 5 }],
       packing: [],
       documents: [],
@@ -225,6 +232,9 @@ describe('route components', () => {
       renderAt('/app/trip/tr-test-fallback');
       expect(await screen.findByText('Dates TBD')).toBeInTheDocument();
       expect(screen.getByText('Choose dates')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('tab', { name: /Bookings/i }));
+      expect(screen.getByText('Mystery booking')).toBeInTheDocument();
+      expect(screen.getAllByText('—').length).toBeGreaterThan(0);
       fireEvent.click(screen.getByRole('tab', { name: /Budget/i }));
       expect(screen.getAllByText(/\$0/).length).toBeGreaterThan(0);
       expect(screen.getByText(/\$5 \/ \$0/)).toBeInTheDocument();
