@@ -61,6 +61,11 @@ const SOURCE_LABELS: Record<BookingSource | 'unknown', string> = {
 // No-op kept for router.tsx compatibility; AppLayout reads from AppContext instead.
 export const tripsLoader = () => ({});
 
+export function localDateLabel(utcDate: Date): string {
+  return new Date(utcDate.getUTCFullYear(), utcDate.getUTCMonth(), utcDate.getUTCDate())
+    .toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+}
+
 export function greeting(h = new Date().getHours()) {
   if (h < 12) return 'Good morning';
   if (h < 18) return 'Good afternoon';
@@ -86,7 +91,7 @@ export function AppLayout() {
     return d >= 0 && d <= 30;
   }).length;
 
-  const todayLabel = TODAY.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const todayLabel = localDateLabel(TODAY);
 
   const soonLabel = /* v8 ignore next */ soonCount === 1 ? `${soonCount} trip within 30 days` : `${soonCount} trips within 30 days`;
 
