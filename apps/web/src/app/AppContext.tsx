@@ -98,7 +98,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     /* v8 ignore next -- Supabase env vars are absent in the test environment */
     if (!import.meta.env['VITE_SUPABASE_URL']) return;
     const sub = subscribeAuthChange(async (session) => {
-      if (!session) { setUserId(null); return; }
+      if (!session) {
+        setUserId(null);
+        setTrips([]);
+        setTripDetails({});
+        setInsights([]);
+        setInbox([]);
+        return;
+      }
       const uid = session.user.id;
       setUserId(uid);
       const seeded = await hasSeededData(uid);
