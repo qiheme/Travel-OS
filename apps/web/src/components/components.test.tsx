@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppProvider, useApp } from '../app/AppContext';
-import { INBOX, INSIGHTS, TODAY, TRIPS } from '../lib/data';
+import { INBOX, INSIGHTS, INTEGRATIONS, TODAY, TRIPS } from '../lib/data';
 import type { Trip } from '../lib/types';
 import { ArchiveDashboard } from './ArchiveDashboard';
 import { Avatars } from './Avatars';
@@ -10,9 +10,12 @@ import { CalendarDashboard } from './CalendarDashboard';
 import { CategoryPips } from './CategoryPips';
 import { InboxDashboard } from './InboxDashboard';
 import { BOOKING_ICONS, Icon } from './Icon';
+import { AddTripModal } from './modals/AddTripModal';
+import { IntegrationsModal } from './modals/IntegrationsModal';
 import { PipelineDashboard } from './PipelineDashboard';
 import { StageDot } from './StageDot';
 import { TripCard } from './TripCard';
+import { TweaksPanel } from './TweaksPanel';
 
 const navigateMock = vi.fn();
 
@@ -27,12 +30,14 @@ vi.mock('react-router-dom', async () => {
 const originalTrips = structuredClone(TRIPS);
 const originalInbox = structuredClone(INBOX);
 const originalInsights = structuredClone(INSIGHTS);
+const originalIntegrations = structuredClone(INTEGRATIONS);
 const originalToday = TODAY.toISOString();
 
 function resetFixtures() {
   TRIPS.splice(0, TRIPS.length, ...structuredClone(originalTrips));
   INBOX.splice(0, INBOX.length, ...structuredClone(originalInbox));
   INSIGHTS.splice(0, INSIGHTS.length, ...structuredClone(originalInsights));
+  INTEGRATIONS.splice(0, INTEGRATIONS.length, ...structuredClone(originalIntegrations));
   TODAY.setTime(new Date(originalToday).getTime());
   navigateMock.mockReset();
   window.localStorage.clear();
@@ -442,5 +447,323 @@ describe('dashboard components', () => {
 
     fireEvent.click(screen.getByText('General nudge'));
     expect(navigateMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('modals and tweaks panel', () => {
+  function AddTripDriver() {
+    const { showModal, setShowModal } = useApp();
+    return (
+      <>
+        <button onClick={() => setShowModal(true)}>Open modal</button>
+        {showModal && <AddTripModal />}
+      </>
+    );
+  }
+
+  function IntegrationsDriver() {
+    const { showIntegrations, setShowIntegrations } = useApp();
+    return (
+      <>
+        <button onClick={() => setShowIntegrations(true)}>Open integrations</button>
+        {showIntegrations && <IntegrationsModal />}
+      </>
+    );
+  }
+
+  function TweaksDriver() {
+    const { tweaksOpen, setTweaksOpen } = useApp();
+    return (
+      <>
+        <button onClick={() => setTweaksOpen(true)}>Open tweaks</button>
+        {tweaksOpen && <TweaksPanel />}
+      </>
+    );
+  }
+
+  it('AddTripModal step 0 renders fields and validates destination + country required', () => {
+    renderWithApp(<AddTripDriver />);
+    fireEvent.click(screen.getByRole('button', { name: /Open modal/i }));
+
+    expect(screen.getByLabelText(/Destination/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Country/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Region/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/When/i)).toBeInTheDocument();
+
+    // Disabled with no inputs
+    expect(screen.getByRole('button', { name: /Next/i })).toBeDisabled();
+
+    // Destination filled but country empty → still disabled
+    fireEvent.change(screen.getByPlaceholderText(/Kyoto, Patagonia/i), { target: { value: 'Paris' } });
+    expect(screen.getByRole('button', { name: /Next/i })).toBeDisabled();
+
+    // Both filled → enabled
+    fireEvent.change(screen.getByPlaceholderText(/Japan/i), { target: { value: 'France' } });
+    expect(screen.getByRole('button', { name: /Next/i })).not.toBeDisabled();
+
+    // Fill optional fields for coverage
+    fireEvent.change(screen.getByPlaceholderText(/Optional/i), { target: { value: 'Île-de-France' } });
+    fireEvent.change(screen.getByPlaceholderText(/Spring 2027/i), { target: { value: 'Summer 2027' } });
+
+    // Clicking inside modal does not close it
+    fireEvent.click(document.querySelector('.modal') as HTMLElement);
+    expect(screen.getByLabelText(/Destination/i)).toBeInTheDocument();
+  });
+
+  it('AddTripModal cancel closes from step 0; backdrop closes; back returns from step 1 to step 0', () => {
+    renderWithApp(<AddTripDriver />);
+    fireEvent.click(screen.getByRole('button', { name: /Open modal/i }));
+
+    // Backdrop closes
+    fireEvent.click(document.querySelector('.modal-backdrop') as HTMLElement);
+    expect(screen.queryByLabelText(/Destination/i)).not.toBeInTheDocument();
+
+    // Reopen → Cancel closes
+    fireEvent.click(screen.getByRole('button', { name: /Open modal/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Cancel/i }));
+    expect(screen.queryByLabelText(/Destination/i)).not.toBeInTheDocument();
+
+    // Reopen → fill step 0 → navigate to step 1 → Back returns to step 0
+    fireEvent.click(screen.getByRole('button', { name: /Open modal/i }));
+    fireEvent.change(screen.getByPlaceholderText(/Kyoto, Patagonia/i), { target: { value: 'Paris' } });
+    fireEvent.change(screen.getByPlaceholderText(/Japan/i), { target: { value: 'France' } });
+    fireEvent.click(screen.getByRole('button', { name: /Next/i }));
+    expect(screen.getByText(/Categories/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /← Back/i }));
+    expect(screen.getByLabelText(/Destination/i)).toBeInTheDocument();
+  });
+
+  it('AddTripModal close button (×) works', () => {
+    renderWithApp(<AddTripDriver />);
+    fireEvent.click(screen.getByRole('button', { name: /Open modal/i }));
+    fireEvent.click(screen.getByRole('button', { name: /close/i }));
+    expect(screen.queryByLabelText(/Destination/i)).not.toBeInTheDocument();
+  });
+
+  it('AddTripModal step 1 validates categories and travelers with toggle behavior', () => {
+    renderWithApp(<AddTripDriver />);
+    fireEvent.click(screen.getByRole('button', { name: /Open modal/i }));
+    fireEvent.change(screen.getByPlaceholderText(/Kyoto, Patagonia/i), { target: { value: 'Paris' } });
+    fireEvent.change(screen.getByPlaceholderText(/Japan/i), { target: { value: 'France' } });
+    fireEvent.click(screen.getByRole('button', { name: /Next/i }));
+
+    // Travelers (Quincy) pre-selected; no categories → disabled
+    expect(screen.getByRole('button', { name: /Quincy/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Maren/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Next/i })).toBeDisabled();
+
+    // Toggle category on → enabled
+    fireEvent.click(screen.getByRole('button', { name: /^Family$/i }));
+    expect(screen.getByRole('button', { name: /Next/i })).not.toBeDisabled();
+
+    // Toggle category off → disabled again
+    fireEvent.click(screen.getByRole('button', { name: /^Family$/i }));
+    expect(screen.getByRole('button', { name: /Next/i })).toBeDisabled();
+
+    // Re-select category; deselect all travelers → disabled
+    fireEvent.click(screen.getByRole('button', { name: /^Family$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Quincy/i })); // deselect pre-selected traveler
+    expect(screen.getByRole('button', { name: /Next/i })).toBeDisabled();
+
+    // Re-add traveler → enabled
+    fireEvent.click(screen.getByRole('button', { name: /Quincy/i }));
+    expect(screen.getByRole('button', { name: /Next/i })).not.toBeDisabled();
+  });
+
+  it('AddTripModal step 2 shows confirmation summary and submitting adds trip and closes', () => {
+    renderWithApp(<AddTripDriver />);
+    fireEvent.click(screen.getByRole('button', { name: /Open modal/i }));
+
+    // Step 0
+    fireEvent.change(screen.getByPlaceholderText(/Kyoto, Patagonia/i), { target: { value: 'Paris' } });
+    fireEvent.change(screen.getByPlaceholderText(/Japan/i), { target: { value: 'France' } });
+    fireEvent.click(screen.getByRole('button', { name: /Next/i }));
+
+    // Step 1
+    fireEvent.click(screen.getByRole('button', { name: /^Family$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Next/i }));
+
+    // Step 2: budget input, summary with destination name, Next disabled or not (always proceed)
+    expect(screen.getByLabelText(/Rough budget/i)).toBeInTheDocument();
+    expect(screen.getByText(/Paris/)).toBeInTheDocument();
+    expect(screen.getByText(/Dreaming/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/Rough budget/i), { target: { value: '5000' } });
+
+    // Step 2 canProceed() is always true → Add trip button enabled
+    expect(screen.getByRole('button', { name: /Add trip/i })).not.toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: /Add trip/i }));
+
+    // Modal closes after submit
+    expect(screen.queryByLabelText(/Rough budget/i)).not.toBeInTheDocument();
+  });
+
+  it('AddTripModal handles empty budget (fallback to 0) and trip count increases', () => {
+    function CountingDriver() {
+      const { trips, showModal, setShowModal } = useApp();
+      return (
+        <>
+          <div>{trips.length} trips</div>
+          <button onClick={() => setShowModal(true)}>Open modal</button>
+          {showModal && <AddTripModal />}
+        </>
+      );
+    }
+
+    renderWithApp(<CountingDriver />);
+    const initialCount = screen.getByText(/trips/).textContent;
+    expect(initialCount).toMatch(/\d+ trips/);
+
+    fireEvent.click(screen.getByRole('button', { name: /Open modal/i }));
+
+    // Step 0
+    fireEvent.change(screen.getByPlaceholderText(/Kyoto, Patagonia/i), { target: { value: 'Tokyo' } });
+    fireEvent.change(screen.getByPlaceholderText(/Japan/i), { target: { value: 'Japan' } });
+    fireEvent.click(screen.getByRole('button', { name: /Next/i }));
+
+    // Step 1
+    fireEvent.click(screen.getByRole('button', { name: /^Couple$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Next/i }));
+
+    // Step 2: leave budget empty (triggers || 0 fallback)
+    const budgetInput = screen.getByLabelText(/Rough budget/i) as HTMLInputElement;
+    expect(budgetInput.value).toBe('');
+    fireEvent.click(screen.getByRole('button', { name: /Add trip/i }));
+
+    // Trip added with budget 0
+    const finalCount = screen.getByText(/trips/).textContent;
+    expect(finalCount).not.toEqual(initialCount);
+  });
+
+  it('AddTripModal full workflow with all fields filled and trip added', () => {
+    function TripsDriver() {
+      const { trips, showModal, setShowModal } = useApp();
+      return (
+        <>
+          <div data-testid="trip-count">{trips.length} trips</div>
+          <button onClick={() => setShowModal(true)}>Open modal</button>
+          {showModal && <AddTripModal />}
+        </>
+      );
+    }
+
+    renderWithApp(<TripsDriver />);
+    const initialTrips = parseInt(screen.getByTestId('trip-count').textContent!.match(/\d+/)![0]);
+
+    fireEvent.click(screen.getByRole('button', { name: /Open modal/i }));
+    expect(screen.getByText(/New trip/)).toBeInTheDocument();
+
+    // Step 0: all fields
+    fireEvent.change(screen.getByPlaceholderText(/Kyoto, Patagonia/i), { target: { value: 'Amsterdam' } });
+    fireEvent.change(screen.getByPlaceholderText(/Optional/i), { target: { value: 'Canals' } });
+    fireEvent.change(screen.getByPlaceholderText(/Japan/i), { target: { value: 'Netherlands' } });
+    fireEvent.change(screen.getByPlaceholderText(/Spring 2027/i), { target: { value: 'Fall 2026' } });
+    fireEvent.click(screen.getByRole('button', { name: /Next/i }));
+
+    // Step 1: categories and travelers
+    fireEvent.click(screen.getByRole('button', { name: /^Couple$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Maren/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Next/i }));
+
+    // Step 2: budget
+    fireEvent.change(screen.getByLabelText(/Rough budget/i), { target: { value: '3500' } });
+    fireEvent.click(screen.getByRole('button', { name: /Add trip/i }));
+
+    // Modal closed, trip added
+    expect(screen.queryByText(/New trip/)).not.toBeInTheDocument();
+    const finalTrips = parseInt(screen.getByTestId('trip-count').textContent!.match(/\d+/)![0]);
+    expect(finalTrips).toBe(initialTrips + 1);
+  });
+
+  it('IntegrationsModal renders all integrations with status badges and meta text', () => {
+    renderWithApp(<IntegrationsDriver />);
+    fireEvent.click(screen.getByRole('button', { name: /Open integrations/i }));
+
+    expect(screen.getByText('Forwarding inbox')).toBeInTheDocument();
+    expect(screen.getByText('Gmail')).toBeInTheDocument();
+    expect(screen.getByText('Flight tracking')).toBeInTheDocument();
+    expect(screen.getByText('Browser extension')).toBeInTheDocument();
+    expect(screen.getByText('Airbnb')).toBeInTheDocument();
+    expect(screen.getByText('Viator / GetYourGuide')).toBeInTheDocument();
+    expect(screen.getByText('OpenTable')).toBeInTheDocument();
+    expect(screen.getByText('Calendar export')).toBeInTheDocument();
+
+    // Status badges
+    expect(screen.getAllByText(/● Connected/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/◐ Via forwarding/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/○ Available/).length).toBeGreaterThan(0);
+
+    // Meta + count for active entries
+    expect(screen.getByText(/quincy\+trips@travelos\.app/)).toBeInTheDocument();
+    expect(screen.getByText(/42 this year/)).toBeInTheDocument();
+  });
+
+  it('IntegrationsModal renders meta without count when count is null', () => {
+    INTEGRATIONS.find((i) => i.key === 'forward')!.count = null;
+    renderWithApp(<IntegrationsDriver />);
+    fireEvent.click(screen.getByRole('button', { name: /Open integrations/i }));
+
+    expect(screen.getByText(/quincy\+trips@travelos\.app/)).toBeInTheDocument();
+    expect(screen.queryByText(/42 this year/)).not.toBeInTheDocument();
+  });
+
+  it('IntegrationsModal closes via close button, backdrop, and done button', () => {
+    renderWithApp(<IntegrationsDriver />);
+    fireEvent.click(screen.getByRole('button', { name: /Open integrations/i }));
+
+    // Close via × button
+    fireEvent.click(screen.getByRole('button', { name: /close/i }));
+    expect(screen.queryByText('Forwarding inbox')).not.toBeInTheDocument();
+
+    // Close via backdrop
+    fireEvent.click(screen.getByRole('button', { name: /Open integrations/i }));
+    fireEvent.click(document.querySelector('.modal-backdrop') as HTMLElement);
+    expect(screen.queryByText('Forwarding inbox')).not.toBeInTheDocument();
+
+    // Close via Done button
+    fireEvent.click(screen.getByRole('button', { name: /Open integrations/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Done/i }));
+    expect(screen.queryByText('Forwarding inbox')).not.toBeInTheDocument();
+  });
+
+  it('TweaksPanel renders and updates theme, accent, and density then closes', () => {
+    renderWithApp(<TweaksDriver />);
+    fireEvent.click(screen.getByRole('button', { name: /Open tweaks/i }));
+
+    expect(screen.getByText(/Tweaks/)).toBeInTheDocument();
+
+    // Initial active states (light, orange, normal)
+    expect(screen.getByRole('button', { name: /Light/i })).toHaveClass('on');
+    expect(screen.getByRole('button', { name: /Dark/i })).not.toHaveClass('on');
+    expect(screen.getByTitle('Clay')).toHaveClass('on');
+    expect(screen.getByTitle('Olive')).not.toHaveClass('on');
+    expect(screen.getByRole('button', { name: /normal/i })).toHaveClass('on');
+
+    // Switch to dark theme
+    fireEvent.click(screen.getByRole('button', { name: /Dark/i }));
+    expect(document.documentElement).toHaveAttribute('data-theme', 'dark');
+    expect(screen.getByRole('button', { name: /Dark/i })).toHaveClass('on');
+    expect(screen.getByRole('button', { name: /Light/i })).not.toHaveClass('on');
+
+    // Switch back to light
+    fireEvent.click(screen.getByRole('button', { name: /Light/i }));
+    expect(document.documentElement).toHaveAttribute('data-theme', 'light');
+
+    // Change accent to olive
+    fireEvent.click(screen.getByTitle('Olive'));
+    expect(screen.getByTitle('Olive')).toHaveClass('on');
+    expect(screen.getByTitle('Clay')).not.toHaveClass('on');
+
+    // Change density to compact
+    fireEvent.click(screen.getByRole('button', { name: /compact/i }));
+    expect(screen.getByRole('button', { name: /compact/i })).toHaveClass('on');
+    expect(screen.getByRole('button', { name: /normal/i })).not.toHaveClass('on');
+
+    // Change density to roomy (covers third branch)
+    fireEvent.click(screen.getByRole('button', { name: /roomy/i }));
+    expect(screen.getByRole('button', { name: /roomy/i })).toHaveClass('on');
+
+    // Close panel
+    fireEvent.click(screen.getByRole('button', { name: /close/i }));
+    expect(screen.queryByText(/Tweaks/)).not.toBeInTheDocument();
   });
 });

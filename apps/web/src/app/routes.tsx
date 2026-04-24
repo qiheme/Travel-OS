@@ -5,6 +5,9 @@ import { ArchiveDashboard } from '../components/ArchiveDashboard';
 import { CalendarDashboard } from '../components/CalendarDashboard';
 import { InboxDashboard } from '../components/InboxDashboard';
 import { PipelineDashboard } from '../components/PipelineDashboard';
+import { AddTripModal } from '../components/modals/AddTripModal';
+import { IntegrationsModal } from '../components/modals/IntegrationsModal';
+import { TweaksPanel } from '../components/TweaksPanel';
 import { useApp } from './AppContext';
 import { TODAY, TRAVELERS } from '../lib/data';
 import { findTripById } from '../lib/trips';
@@ -76,7 +79,7 @@ export function AppLayout() {
   const {
     trips, inbox, search, setSearch,
     categoryFilter, toggleCategoryFilter,
-    tweaksOpen, setShowModal, setShowIntegrations, setTweaksOpen,
+    showModal, showIntegrations, tweaksOpen, setShowModal, setShowIntegrations, setTweaksOpen,
   } = useApp();
 
   const { pathname } = useLocation();
@@ -186,6 +189,10 @@ export function AppLayout() {
         )}
         <Outlet context={{ trips } satisfies OutletCtx} />
       </main>
+
+      {showModal && <AddTripModal />}
+      {showIntegrations && <IntegrationsModal />}
+      {tweaksOpen && <TweaksPanel />}
     </div>
   );
 }
