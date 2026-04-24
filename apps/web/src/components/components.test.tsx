@@ -1,6 +1,23 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('../lib/db', () => ({
+  getSession: vi.fn(),
+  signInWithMagicLink: vi.fn(),
+  subscribeAuthChange: vi.fn().mockReturnValue({ unsubscribe: vi.fn() }),
+  hasSeededData: vi.fn(),
+  seedFromFixtures: vi.fn(),
+  fetchTrips: vi.fn(),
+  fetchTripDetails: vi.fn(),
+  fetchInsights: vi.fn(),
+  fetchInboxItems: vi.fn(),
+  upsertTrip: vi.fn(),
+  upsertTripDetail: vi.fn(),
+  deleteInsight: vi.fn(),
+  deleteInboxItem: vi.fn(),
+}));
+
 import { AppProvider, useApp } from '../app/AppContext';
 import { INBOX, INSIGHTS, INTEGRATIONS, TODAY, TRIPS } from '../lib/data';
 import type { Trip } from '../lib/types';

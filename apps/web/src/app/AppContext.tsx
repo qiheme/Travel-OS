@@ -1,5 +1,18 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { INBOX, INSIGHTS, TRIP_DETAILS, TRIPS } from '../lib/data';
+import { INBOX, INSIGHTS, TRIP_DETAILS, TRAVELERS, TRIPS } from '../lib/data';
+import {
+  deleteInboxItem,
+  deleteInsight,
+  fetchInboxItems,
+  fetchInsights,
+  fetchTripDetails,
+  fetchTrips,
+  hasSeededData,
+  seedFromFixtures,
+  subscribeAuthChange,
+  upsertTrip,
+  upsertTripDetail,
+} from '../lib/db';
 import type { InboxItem, Insight, Trip, TripDetail, TripStage } from '../lib/types';
 
 type AccentKey = 'orange' | 'olive' | 'blue' | 'plum' | 'sand';
@@ -27,6 +40,7 @@ type AppState = {
   tweaksOpen: boolean;
   showModal: boolean;
   showIntegrations: boolean;
+  userId: string | null;
 };
 
 type AppActions = {
@@ -66,6 +80,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [tweaksOpen, setTweaksOpen] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [showIntegrations, setShowIntegrations] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => { document.documentElement.setAttribute('data-theme', theme); }, [theme]);
   useEffect(() => {
@@ -79,6 +94,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     document.documentElement.style.fontSize = `${14 * Number(m[density])}px`;
   }, [density]);
 
+  useEffect(() => {
+    /* v8 ignore next -- Supabase env vars are absent in the test environment */
+    if (!import.meta.env['VITE_SUPABASE_URL']) return;
+    const sub = subscribeAuthChange(async (session) => {
+      if (!session) { setUserId(null); return; }
+      const uid = session.user.id;
+      setUserId(uid);
+      const seeded = await hasSeededData(uid);
+      if (!seeded) {
+        await seedFromFixtures(uid, { trips: TRIPS, tripDetails: TRIP_DETAILS, insights: INSIGHTS, inbox: INBOX, travelers: TRAVELERS });
+      }
+      const [ts, ds, ins, inb] = await Promise.all([
+        fetchTrips(uid), fetchTripDetails(uid), fetchInsights(uid), fetchInboxItems(uid),
+      ]);
+      setTrips(ts);
+      setTripDetails(ds);
+      setInsights(ins);
+      setInbox(inb);
+    });
+    return () => sub.unsubscribe();
+  }, []);
+
   const searchedTrips = useMemo(() => {
     if (!search) return trips;
     const q = search.toLowerCase();
@@ -91,36 +128,71 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [trips, search]);
 
   const moveStage = (tripId: string, stage: TripStage) =>
-    setTrips((ts) => ts.map((t) => (t.id === tripId ? { ...t, stage } : t)));
+    setTrips((ts) => {
+      const next = ts.map((t) => (t.id === tripId ? { ...t, stage } : t));
+      const updated = next.find((t) => t.id === tripId);
+      if (userId && updated) void upsertTrip(userId, updated);
+      return next;
+    });
 
   const updateTrip = (tripId: string, patch: Partial<Trip>) =>
-    setTrips((ts) => ts.map((t) => (t.id === tripId ? { ...t, ...patch } : t)));
+    setTrips((ts) => {
+      const next = ts.map((t) => (t.id === tripId ? { ...t, ...patch } : t));
+      const updated = next.find((t) => t.id === tripId);
+      if (userId && updated) void upsertTrip(userId, updated);
+      return next;
+    });
 
-  const addTrip = (trip: Trip) => setTrips((ts) => [...ts, trip]);
+  const addTrip = (trip: Trip) => {
+    setTrips((ts) => {
+      const next = [...ts, trip];
+      if (userId) void upsertTrip(userId, trip);
+      return next;
+    });
+  };
 
   const togglePacked = (tripId: string, idx: number) =>
-    setTripDetails((d) => ({
-      ...d,
-      [tripId]: {
-        ...d[tripId],
-        packing: d[tripId].packing.map((p, i) => (i === idx ? { ...p, packed: !p.packed } : p)),
-      },
-    }));
+    setTripDetails((d) => {
+      const next = {
+        ...d,
+        [tripId]: {
+          ...d[tripId],
+          packing: d[tripId].packing.map((p, i) => (i === idx ? { ...p, packed: !p.packed } : p)),
+        },
+      };
+      if (userId) void upsertTripDetail(userId, tripId, next[tripId]);
+      return next;
+    });
 
   const toggleBookingStatus = (tripId: string, idx: number, status: string) =>
-    setTripDetails((d) => ({
-      ...d,
-      [tripId]: {
-        ...d[tripId],
-        bookings: d[tripId].bookings.map((b, i) =>
-          i === idx ? { ...b, status: status as import('../lib/types').BookingStatus } : b,
-        ),
-      },
-    }));
+    setTripDetails((d) => {
+      const next = {
+        ...d,
+        [tripId]: {
+          ...d[tripId],
+          bookings: d[tripId].bookings.map((b, i) =>
+            i === idx ? { ...b, status: status as import('../lib/types').BookingStatus } : b,
+          ),
+        },
+      };
+      if (userId) void upsertTripDetail(userId, tripId, next[tripId]);
+      return next;
+    });
 
-  const dismissInsight = (id: string) => setInsights((ii) => ii.filter((i) => i.id !== id));
-  const dismissInboxItem = (id: string) => setInbox((ii) => ii.filter((i) => i.id !== id));
-  const assignInboxItem = (id: string) => setInbox((ii) => ii.filter((i) => i.id !== id));
+  const dismissInsight = (id: string) => {
+    setInsights((ii) => ii.filter((i) => i.id !== id));
+    if (userId) void deleteInsight(userId, id);
+  };
+
+  const dismissInboxItem = (id: string) => {
+    setInbox((ii) => ii.filter((i) => i.id !== id));
+    if (userId) void deleteInboxItem(userId, id);
+  };
+
+  const assignInboxItem = (id: string) => {
+    setInbox((ii) => ii.filter((i) => i.id !== id));
+    if (userId) void deleteInboxItem(userId, id);
+  };
 
   const toggleCategoryFilter = (key: string) =>
     setCategoryFilter((f) => (f.includes(key) ? f.filter((x) => x !== key) : [...f, key]));
@@ -130,6 +202,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       value={{
         trips, tripDetails, insights, inbox, search, categoryFilter,
         theme, accent, density, showInsights, tweaksOpen, showModal, showIntegrations,
+        userId,
         searchedTrips,
         moveStage, updateTrip, addTrip, togglePacked, toggleBookingStatus,
         dismissInsight, dismissInboxItem, assignInboxItem,
