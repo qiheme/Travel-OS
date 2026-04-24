@@ -51,7 +51,7 @@ function makeChain(result: { data: unknown; error: unknown; count?: number }) {
 }
 
 const mockFrom = supabase.from as ReturnType<typeof vi.fn>;
-const mockAuth = supabase.auth as {
+const mockAuth = supabase.auth as unknown as {
   getSession: ReturnType<typeof vi.fn>;
   signInWithOtp: ReturnType<typeof vi.fn>;
   signOut: ReturnType<typeof vi.fn>;
@@ -228,7 +228,7 @@ describe('upsertTrip', () => {
     mockFrom.mockReturnValue(chain);
     const trip = {
       id: 'tr-1', destination: 'Rome', region: '', country: 'Italy',
-      stage: 'dreaming' as const, categories: [] as const, start_date: null,
+      stage: 'dreaming' as const, categories: [] as import('./types').TripCategory[], start_date: null,
       end_date: null, date_approx: null, budget_total: 0, budget_spent: 0,
       budget_currency: 'USD', travelers: [], cover: { hue: 42, label: 'terracotta' },
       notes: '', nights: 0,
