@@ -19,7 +19,8 @@ A personal trip-management app — pipeline, inbox, calendar, budget, packing, a
 | Build / dev server | Vite 5 |
 | Routing | React Router v6 |
 | Backend | Supabase (Postgres + magic-link auth) |
-| Testing | Vitest + Testing Library (100% branch coverage enforced) |
+| Unit tests | Vitest + Testing Library (100% branch coverage enforced) |
+| E2E / visual tests | Playwright (Chromium, with screenshot regression) |
 | Styling | Vanilla CSS with design-token variables |
 | Deployment | Vercel |
 
@@ -60,6 +61,32 @@ Both values are available in your Supabase project under **Settings → API**.
 | `npm run lint` | ESLint over `apps/web/src` |
 | `npm test` | Vitest with v8 coverage (100% required, fails CI if below) |
 | `npm run test:watch` | Vitest in watch mode |
+| `npm run test:e2e` | Playwright integration + visual tests (Chromium) |
+| `npm run test:e2e:ui` | Playwright in interactive UI mode |
+
+### Playwright quick-start
+
+Install the browser once:
+
+```bash
+npx playwright install chromium
+```
+
+Run all e2e tests:
+
+```bash
+npm run test:e2e
+```
+
+Regenerate visual baselines after an intentional UI change:
+
+```bash
+npx playwright test --update-snapshots e2e/visual/
+```
+
+Commit the updated PNGs in `e2e/__snapshots__/` as part of the same PR.
+
+> **Note:** `VITE_E2E_BYPASS_AUTH=true` is injected automatically by the Playwright `webServer` config so tests can reach app routes without Supabase credentials. This variable is gated by `import.meta.env.DEV` and is dead-code eliminated in production builds — it cannot exist in a deployed bundle.
 
 ## Architecture
 
