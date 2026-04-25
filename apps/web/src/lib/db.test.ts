@@ -10,6 +10,8 @@ vi.mock('./supabase', () => ({
       onAuthStateChange: vi.fn(),
     },
     from: vi.fn(),
+    channel: vi.fn(),
+    removeChannel: vi.fn(),
   },
 }));
 
@@ -29,6 +31,8 @@ import {
   upsertTripDetail,
   deleteInsight,
   deleteInboxItem,
+  insertInboxItem,
+  subscribeInbox,
   seedFromFixtures,
 } from './db';
 
@@ -38,6 +42,7 @@ function makeChain(result: { data: unknown; error: unknown; count?: number }) {
     eq: vi.fn(),
     order: vi.fn(),
     upsert: vi.fn(),
+    insert: vi.fn(),
     delete: vi.fn(),
     then: (cb: (v: { data: unknown; error: unknown; count?: number }) => void) =>
       Promise.resolve(cb(result)),
@@ -46,6 +51,7 @@ function makeChain(result: { data: unknown; error: unknown; count?: number }) {
   c.eq.mockReturnValue(c);
   c.order.mockReturnValue(c);
   c.upsert.mockReturnValue(c);
+  c.insert.mockReturnValue(c);
   c.delete.mockReturnValue(c);
   return c;
 }
@@ -56,6 +62,10 @@ const mockAuth = supabase.auth as unknown as {
   signInWithOtp: ReturnType<typeof vi.fn>;
   signOut: ReturnType<typeof vi.fn>;
   onAuthStateChange: ReturnType<typeof vi.fn>;
+};
+const mockSupabase = supabase as unknown as {
+  channel: ReturnType<typeof vi.fn>;
+  removeChannel: ReturnType<typeof vi.fn>;
 };
 
 beforeEach(() => vi.clearAllMocks());
@@ -333,6 +343,110 @@ describe('deleteInboxItem', () => {
   it('swallows errors silently', async () => {
     mockFrom.mockReturnValue(makeChain({ data: null, error: new Error('fail') }));
     await expect(deleteInboxItem('u1', 'ib1')).resolves.toBeUndefined();
+  });
+});
+
+describe('insertInboxItem', () => {
+  it('inserts a row mapping from → from_address', async () => {
+    const chain = makeChain({ data: null, error: null });
+    mockFrom.mockReturnValue(chain);
+    const item: InboxItem = {
+      id: 'ib-new', source: 'email', vendor: 'AA', subject: 'Your flight',
+      from: 'aa@aa.com', received_ago: '1h ago', status: 'parsing', parsed: null,
+    };
+    await insertInboxItem('u1', item);
+    expect(chain.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'ib-new', user_id: 'u1', from_address: 'aa@aa.com', status: 'parsing' }),
+    );
+  });
+
+  it('logs a warning on error', async () => {
+    mockFrom.mockReturnValue(makeChain({ data: null, error: new Error('fail') }));
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const item: InboxItem = {
+      id: 'ib-x', source: 'email', vendor: 'X', subject: 'X',
+      from: 'x@x.com', received_ago: '1h', status: 'parsing', parsed: null,
+    };
+    await insertInboxItem('u1', item);
+    expect(warnSpy).toHaveBeenCalledWith('[db] insertInboxItem:', 'fail');
+    warnSpy.mockRestore();
+  });
+});
+
+describe('subscribeInbox', () => {
+  function makeChannelObj() {
+    let capturedCb: ((payload: unknown) => void) | undefined;
+    const subscribe = vi.fn();
+    const on = vi.fn().mockImplementation((_event: string, _filter: unknown, cb: (payload: unknown) => void) => {
+      capturedCb = cb;
+      return channelObj;
+    });
+    const channelObj = { on, subscribe };
+    subscribe.mockReturnValue(channelObj);
+    return { channelObj, getCapturedCb: () => capturedCb };
+  }
+
+  it('subscribes with correct table, event, and filter', () => {
+    const { channelObj } = makeChannelObj();
+    mockSupabase.channel.mockReturnValue(channelObj);
+    subscribeInbox('u1', vi.fn());
+    expect(mockSupabase.channel).toHaveBeenCalledWith(expect.any(String));
+    expect(channelObj.on).toHaveBeenCalledWith(
+      'postgres_changes',
+      expect.objectContaining({ event: '*', schema: 'public', table: 'inbox_items', filter: 'user_id=eq.u1' }),
+      expect.any(Function),
+    );
+  });
+
+  it('unsubscribe calls removeChannel with the channel object', () => {
+    const { channelObj } = makeChannelObj();
+    mockSupabase.channel.mockReturnValue(channelObj);
+    const sub = subscribeInbox('u1', vi.fn());
+    sub.unsubscribe();
+    expect(mockSupabase.removeChannel).toHaveBeenCalledWith(channelObj);
+  });
+
+  it('maps INSERT payload row to InboxItem and calls onChange', () => {
+    const { channelObj, getCapturedCb } = makeChannelObj();
+    mockSupabase.channel.mockReturnValue(channelObj);
+    const handler = vi.fn();
+    subscribeInbox('u1', handler);
+    const row = {
+      id: 'ib1', source: 'email', vendor: 'AA', subject: 'Flight',
+      from_address: 'aa@aa.com', received_ago: '1h', status: 'parsed',
+      parsed: null, suggested_trip: 'tr-1', suggested_confidence: 0.9, note: 'auto',
+    };
+    getCapturedCb()!({ eventType: 'INSERT', new: row, old: {} });
+    expect(handler).toHaveBeenCalledWith({
+      eventType: 'INSERT',
+      item: expect.objectContaining({ id: 'ib1', from: 'aa@aa.com', vendor: 'AA', status: 'parsed' }),
+    });
+  });
+
+  it('maps UPDATE payload row to InboxItem and calls onChange', () => {
+    const { channelObj, getCapturedCb } = makeChannelObj();
+    mockSupabase.channel.mockReturnValue(channelObj);
+    const handler = vi.fn();
+    subscribeInbox('u1', handler);
+    const row = {
+      id: 'ib2', source: 'gmail', vendor: 'UA', subject: 'Updated',
+      from_address: 'ua@ua.com', received_ago: '2h', status: 'needs_review',
+      parsed: null, suggested_trip: undefined, suggested_confidence: undefined, note: undefined,
+    };
+    getCapturedCb()!({ eventType: 'UPDATE', new: row, old: {} });
+    expect(handler).toHaveBeenCalledWith({
+      eventType: 'UPDATE',
+      item: expect.objectContaining({ id: 'ib2', from: 'ua@ua.com', status: 'needs_review' }),
+    });
+  });
+
+  it('maps DELETE payload to id-only change and calls onChange', () => {
+    const { channelObj, getCapturedCb } = makeChannelObj();
+    mockSupabase.channel.mockReturnValue(channelObj);
+    const handler = vi.fn();
+    subscribeInbox('u1', handler);
+    getCapturedCb()!({ eventType: 'DELETE', new: {}, old: { id: 'ib3' } });
+    expect(handler).toHaveBeenCalledWith({ eventType: 'DELETE', id: 'ib3' });
   });
 });
 
