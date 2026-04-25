@@ -10,6 +10,7 @@ import {
   hasSeededData,
   seedFromFixtures,
   subscribeAuthChange,
+  subscribeInbox,
   upsertTrip,
   upsertTripDetail,
 } from '../lib/db';
@@ -97,7 +98,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     /* v8 ignore next -- Supabase env vars are absent in the test environment */
     if (!import.meta.env['VITE_SUPABASE_URL']) return;
+    let inboxSub: { unsubscribe: () => void } | null = null;
     const sub = subscribeAuthChange(async (session) => {
+      inboxSub?.unsubscribe();
+      inboxSub = null;
       if (!session) {
         setUserId(null);
         setTrips([]);
@@ -119,8 +123,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setTripDetails(ds);
       setInsights(ins);
       setInbox(inb);
+      inboxSub = subscribeInbox(uid, (change) => {
+        if (change.eventType === 'DELETE') {
+          setInbox((ii) => ii.filter((i) => i.id !== change.id));
+        } else if (change.eventType === 'INSERT') {
+          setInbox((ii) => [...ii.filter((i) => i.id !== change.item.id), change.item]);
+        } else {
+          setInbox((ii) => ii.map((i) => (i.id === change.item.id ? change.item : i)));
+        }
+      });
     });
-    return () => sub.unsubscribe();
+    return () => {
+      inboxSub?.unsubscribe();
+      sub.unsubscribe();
+    };
   }, []);
 
   const searchedTrips = useMemo(() => {

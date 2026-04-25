@@ -99,13 +99,8 @@ export async function fetchInsights(userId: string): Promise<Insight[]> {
   return data as Insight[];
 }
 
-export async function fetchInboxItems(userId: string): Promise<InboxItem[]> {
-  const { data, error } = await supabase
-    .from('inbox_items')
-    .select('*')
-    .eq('user_id', userId);
-  if (error || !data) return [];
-  return data.map((row) => ({
+function rowToInboxItem(row: Record<string, unknown>): InboxItem {
+  return {
     id: row.id as string,
     source: row.source as InboxItem['source'],
     vendor: row.vendor as string,
@@ -117,7 +112,16 @@ export async function fetchInboxItems(userId: string): Promise<InboxItem[]> {
     suggested_trip: row.suggested_trip as string | undefined,
     suggested_confidence: row.suggested_confidence as number | undefined,
     note: row.note as string | undefined,
-  }));
+  };
+}
+
+export async function fetchInboxItems(userId: string): Promise<InboxItem[]> {
+  const { data, error } = await supabase
+    .from('inbox_items')
+    .select('*')
+    .eq('user_id', userId);
+  if (error || !data) return [];
+  return data.map(rowToInboxItem);
 }
 
 export async function fetchTravelers(userId: string): Promise<Traveler[]> {
@@ -181,6 +185,49 @@ export async function deleteInboxItem(userId: string, id: string): Promise<void>
     .eq('id', id)
     .eq('user_id', userId);
   if (error) console.warn('[db] deleteInboxItem:', error.message);
+}
+
+export async function insertInboxItem(userId: string, item: InboxItem): Promise<void> {
+  const { error } = await supabase.from('inbox_items').insert({
+    id: item.id,
+    user_id: userId,
+    source: item.source,
+    vendor: item.vendor,
+    subject: item.subject,
+    from_address: item.from,
+    received_ago: item.received_ago,
+    status: item.status,
+    parsed: item.parsed,
+    suggested_trip: item.suggested_trip,
+    suggested_confidence: item.suggested_confidence,
+    note: item.note,
+  });
+  if (error) console.warn('[db] insertInboxItem:', error.message);
+}
+
+type InboxChange =
+  | { eventType: 'INSERT' | 'UPDATE'; item: InboxItem }
+  | { eventType: 'DELETE'; id: string };
+
+export function subscribeInbox(
+  userId: string,
+  onChange: (change: InboxChange) => void,
+): { unsubscribe: () => void } {
+  const channel = supabase
+    .channel('inbox_changes')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'inbox_items', filter: `user_id=eq.${userId}` },
+      (payload: { eventType: string; new: Record<string, unknown>; old: Record<string, unknown> }) => {
+        if (payload.eventType === 'DELETE') {
+          onChange({ eventType: 'DELETE', id: payload.old['id'] as string });
+        } else {
+          onChange({ eventType: payload.eventType as 'INSERT' | 'UPDATE', item: rowToInboxItem(payload.new) });
+        }
+      },
+    )
+    .subscribe();
+  return { unsubscribe: () => supabase.removeChannel(channel) };
 }
 
 // ── Seed ──────────────────────────────────────────────────────────────────────
