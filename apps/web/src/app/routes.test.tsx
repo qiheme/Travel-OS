@@ -18,6 +18,7 @@ import {
 
 vi.mock('../lib/db', () => ({
   getSession: vi.fn(),
+  signOut: vi.fn().mockResolvedValue(undefined),
   subscribeAuthChange: vi.fn().mockReturnValue({ unsubscribe: vi.fn() }),
   hasSeededData: vi.fn(),
   seedFromFixtures: vi.fn(),
@@ -30,7 +31,7 @@ vi.mock('../lib/db', () => ({
   deleteInsight: vi.fn(),
   deleteInboxItem: vi.fn(),
 }));
-import { getSession } from '../lib/db';
+import { getSession, signOut } from '../lib/db';
 
 const renderAt = (path: string, tripPath = 'trip/:tripId') => {
   return render(
@@ -44,6 +45,7 @@ const renderAt = (path: string, tripPath = 'trip/:tripId') => {
             <Route path="archive" element={<ArchivePage />} />
             <Route path={tripPath} element={<TripDetailPage />} />
           </Route>
+          <Route path="/login" element={<div data-testid="login-page">login</div>} />
         </Routes>
       </MemoryRouter>
     </AppProvider>
@@ -285,6 +287,95 @@ describe('route components', () => {
       delete TRIP_DETAILS[oneDayTrip.id];
       TRIPS.splice(TRIPS.findIndex((trip) => trip.id === customTrip.id), 1);
       TRIPS.splice(TRIPS.findIndex((trip) => trip.id === oneDayTrip.id), 1);
+    }
+  });
+
+  it('sign-out button calls signOut and navigates to /login', async () => {
+    renderAt('/app/pipeline');
+    await screen.findByText('Travel OS');
+    fireEvent.click(screen.getByRole('button', { name: /sign out/i }));
+    await screen.findByTestId('login-page');
+    expect(vi.mocked(signOut)).toHaveBeenCalled();
+  });
+
+  it('budget tab shows split section for trips with splits data', async () => {
+    renderAt('/app/trip/tr-lisbon');
+    await screen.findByText('Lisbon');
+    fireEvent.click(screen.getByRole('tab', { name: /Budget/i }));
+    expect(screen.getByText(/who owes what/i)).toBeInTheDocument();
+    expect(screen.getByText(/gets back/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/owes/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/settle up/i)).toBeInTheDocument();
+  });
+
+  it('budget split mark paid removes settle row', async () => {
+    renderAt('/app/trip/tr-lisbon');
+    await screen.findByText('Lisbon');
+    fireEvent.click(screen.getByRole('tab', { name: /Budget/i }));
+    const markPaidBtns = screen.getAllByRole('button', { name: /mark paid/i });
+    expect(markPaidBtns.length).toBeGreaterThan(0);
+    fireEvent.click(markPaidBtns[0]);
+    expect(screen.queryAllByRole('button', { name: /mark paid/i }).length).toBe(markPaidBtns.length - 1);
+  });
+
+  it('budget tab shows split cards for iceland (4 travelers)', async () => {
+    renderAt('/app/trip/tr-iceland');
+    await screen.findByText('Reykjavík');
+    fireEvent.click(screen.getByRole('tab', { name: /Budget/i }));
+    expect(screen.getByText(/who owes what/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/gets back|owes/i).length).toBeGreaterThan(0);
+  });
+
+  it('budget tab shows empty split state when no splits configured', async () => {
+    // tr-catskills has 4 travelers but no splits
+    renderAt('/app/trip/tr-catskills');
+    await screen.findByText('Catskills');
+    fireEvent.click(screen.getByRole('tab', { name: /Budget/i }));
+    expect(screen.getByText(/no split set up yet/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /set up split/i })).toBeInTheDocument();
+  });
+
+  it('budget split shows even balance and hides settle-up when all square', async () => {
+    const evenTrip = {
+      id: 'tr-test-even',
+      destination: 'EvenVille',
+      region: 'Test',
+      country: 'Test',
+      stage: 'booked' as const,
+      categories: ['couple' as const],
+      start_date: null,
+      end_date: null,
+      date_approx: null,
+      budget_total: 2000,
+      budget_spent: 2000,
+      budget_currency: 'USD',
+      travelers: ['t1', 't2'],
+      cover: { hue: 100, label: 'test' },
+      notes: '',
+      nights: 5,
+    };
+    TRIPS.push(evenTrip);
+    TRIP_DETAILS[evenTrip.id] = {
+      itinerary: [],
+      bookings: [],
+      budget_breakdown: [],
+      packing: [],
+      documents: [],
+      splits: [
+        { travelerId: 't1', paid: 1000, share: 1000 },
+        { travelerId: 't2', paid: 1000, share: 1000 },
+      ],
+    };
+    try {
+      renderAt(`/app/trip/${evenTrip.id}`);
+      await screen.findByText('EvenVille');
+      fireEvent.click(screen.getByRole('tab', { name: /Budget/i }));
+      expect(screen.getAllByText(/±/i).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/^even$/i).length).toBeGreaterThan(0);
+      expect(screen.queryByText(/settle up/i)).not.toBeInTheDocument();
+    } finally {
+      delete TRIP_DETAILS[evenTrip.id];
+      TRIPS.splice(TRIPS.findIndex((t) => t.id === evenTrip.id), 1);
     }
   });
 });

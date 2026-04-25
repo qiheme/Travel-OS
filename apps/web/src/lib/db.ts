@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { Trip, TripDetail, Insight, InboxItem, Traveler } from './types';
+import type { Trip, TripDetail, TripSplit, Insight, InboxItem, Traveler } from './types';
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
@@ -84,6 +84,7 @@ export async function fetchTripDetails(userId: string): Promise<Record<string, T
         budget_breakdown: row.budget_breakdown as TripDetail['budget_breakdown'],
         packing: row.packing as TripDetail['packing'],
         documents: row.documents as TripDetail['documents'],
+        splits: (row.splits as TripSplit[] | null) ?? undefined,
       },
     ]),
   );
@@ -157,7 +158,7 @@ export async function upsertTripDetail(
       trip_id: tripId, user_id: userId,
       itinerary: detail.itinerary, bookings: detail.bookings,
       budget_breakdown: detail.budget_breakdown, packing: detail.packing,
-      documents: detail.documents,
+      documents: detail.documents, splits: detail.splits,
     },
     { onConflict: 'trip_id,user_id' },
   );
@@ -219,7 +220,7 @@ export async function seedFromFixtures(
         trip_id: tripId, user_id: userId,
         itinerary: detail.itinerary, bookings: detail.bookings,
         budget_breakdown: detail.budget_breakdown, packing: detail.packing,
-        documents: detail.documents,
+        documents: detail.documents, splits: detail.splits,
       })),
       { onConflict: 'trip_id,user_id' },
     ),

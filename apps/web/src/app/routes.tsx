@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Link, NavLink, Outlet, redirect, useLocation, useParams } from 'react-router-dom';
-import { getSession } from '../lib/db';
+import { Link, NavLink, Outlet, redirect, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { getSession, signOut } from '../lib/db';
 import { BOOKING_ICONS, Icon } from '../components/Icon';
 import { ArchiveDashboard } from '../components/ArchiveDashboard';
 import { CalendarDashboard } from '../components/CalendarDashboard';
@@ -21,7 +21,7 @@ import {
   fmtDateRange,
   fmtMoney,
 } from '../lib/utils';
-import type { Booking, BookingSource, BookingStatus, PackingCategory, Trip, TripDetail, TripDocument } from '../lib/types';
+import type { Booking, BookingSource, BookingStatus, PackingCategory, Trip, TripDetail, TripDocument, TripSplit } from '../lib/types';
 
 type OutletCtx = { trips: Trip[] };
 type TripDetailTab = 'overview' | 'itinerary' | 'bookings' | 'budget' | 'packing' | 'documents' | 'notes';
@@ -89,6 +89,7 @@ export function AppLayout() {
     showModal, showIntegrations, tweaksOpen, setShowModal, setShowIntegrations, setTweaksOpen,
   } = useApp();
 
+  const navigate = useNavigate();
   const { pathname } = useLocation();
   const segment = pathname.split('/')[2];
 
@@ -166,10 +167,20 @@ export function AppLayout() {
 
         <div className="sidebar-footer">
           <div className="avatar">Q</div>
-          <div>
+          <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 500, fontSize: 12.5 }}>Quincy</div>
             <div style={{ fontSize: 11 }}>Cherry Hill, NJ</div>
           </div>
+          <button
+            className="icon-btn"
+            title="Sign out"
+            aria-label="Sign out"
+            onClick={() => { void signOut().then(() => navigate('/login')); }}
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+              <path d="M5.5 2H2.5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h3M9.5 10l3-3-3-3M12.5 7h-7" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
         </div>
       </aside>
 
@@ -448,46 +459,49 @@ function TripDetailContent({
         {tab === 'bookings' && <BookingsPanel detail={detail} tripId={trip.id} onToggleStatus={toggleBookingStatus} />}
 
         {tab === 'budget' && (
-          <section className="trip-budget-grid">
-            <div className="trip-card budget-summary-card">
-              <div className="section-heading">
-                <h3>Budget</h3>
-                <p>Total spend versus planned budget.</p>
-              </div>
-              <div className="budget-ring" style={{ ['--budget-pct' as string]: `${budgetPct}%` }}>
-                <div>
-                  <strong>{budgetPct}%</strong>
-                  <span>spent</span>
+          <>
+            <section className="trip-budget-grid">
+              <div className="trip-card budget-summary-card">
+                <div className="section-heading">
+                  <h3>Budget</h3>
+                  <p>Total spend versus planned budget.</p>
+                </div>
+                <div className="budget-ring" style={{ ['--budget-pct' as string]: `${budgetPct}%` }}>
+                  <div>
+                    <strong>{budgetPct}%</strong>
+                    <span>spent</span>
+                  </div>
+                </div>
+                <div className="budget-summary">
+                  <strong>{fmtMoney(trip.budget_spent)}</strong>
+                  <span>of {fmtMoney(trip.budget_total)}</span>
                 </div>
               </div>
-              <div className="budget-summary">
-                <strong>{fmtMoney(trip.budget_spent)}</strong>
-                <span>of {fmtMoney(trip.budget_total)}</span>
-              </div>
-            </div>
-            <div className="trip-card">
-              <div className="section-heading">
-                <h3>By category</h3>
-                <p>How spend is distributed.</p>
-              </div>
-              <div className="budget-lines">
-                {detail.budget_breakdown.map((row) => {
-                  const rowPct = row.total ? Math.min(100, Math.round((row.spent / row.total) * 100)) : 0;
-                  return (
-                    <div key={row.category} className="budget-line">
-                      <div className="budget-line-head">
-                        <span>{row.category}</span>
-                        <strong>{fmtMoney(row.spent)} / {fmtMoney(row.total)}</strong>
+              <div className="trip-card">
+                <div className="section-heading">
+                  <h3>By category</h3>
+                  <p>How spend is distributed.</p>
+                </div>
+                <div className="budget-lines">
+                  {detail.budget_breakdown.map((row) => {
+                    const rowPct = row.total ? Math.min(100, Math.round((row.spent / row.total) * 100)) : 0;
+                    return (
+                      <div key={row.category} className="budget-line">
+                        <div className="budget-line-head">
+                          <span>{row.category}</span>
+                          <strong>{fmtMoney(row.spent)} / {fmtMoney(row.total)}</strong>
+                        </div>
+                        <div className="mini-progress">
+                          <div style={{ width: `${rowPct}%` }} />
+                        </div>
                       </div>
-                      <div className="mini-progress">
-                        <div style={{ width: `${rowPct}%` }} />
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          </section>
+            </section>
+            <SplitBudget splits={detail.splits} trip={trip} />
+          </>
         )}
 
         {tab === 'packing' && (
@@ -717,4 +731,121 @@ function nextBookingStatus(status: BookingStatus): BookingStatus {
   if (status === 'todo') return 'pending';
   if (status === 'pending') return 'done';
   return 'todo';
+}
+
+type SettleRow = { fromId: string; toId: string; amount: number };
+
+function computeSettle(splits: TripSplit[]): SettleRow[] {
+  const net = splits.map((s) => ({ id: s.travelerId, bal: s.paid - s.share }));
+  const cred = net.filter((s) => s.bal > 0.01).map((s) => ({ ...s, rem: s.bal }));
+  const debt = net.filter((s) => s.bal < -0.01).map((s) => ({ ...s, rem: Math.abs(s.bal) }));
+  const rows: SettleRow[] = [];
+  let ci = 0; let di = 0;
+  while (ci < cred.length && di < debt.length) {
+    const amt = Math.min(cred[ci].rem, debt[di].rem);
+    if (amt > 0.01) rows.push({ fromId: debt[di].id, toId: cred[ci].id, amount: amt });
+    cred[ci].rem -= amt;
+    debt[di].rem -= amt;
+    if (cred[ci].rem < 0.01) ci++;
+    if (debt[di].rem < 0.01) di++;
+  }
+  return rows;
+}
+
+function SplitBudget({ splits, trip }: { splits: TripSplit[] | undefined; trip: Trip }) {
+  const travelers = trip.travelers
+    .map((id) => TRAVELERS.find((t) => t.id === id))
+    .filter((t): t is (typeof TRAVELERS)[number] => Boolean(t));
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+
+  if (!splits || splits.length === 0) {
+    if (trip.travelers.length <= 1) return null;
+    return (
+      <div className="split-empty">
+        <p className="split-empty-title">{trip.travelers.length} travelers · <em>no split set up yet</em></p>
+        <p className="split-empty-hint">
+          Default: equal split — {fmtMoney(trip.budget_total / trip.travelers.length)} per person
+        </p>
+        <button className="btn primary">
+          <Icon.Plus /> Set up split
+        </button>
+      </div>
+    );
+  }
+
+  const settle = computeSettle(splits).filter((r) => !dismissed.has(`${r.fromId}-${r.toId}`));
+  /* v8 ignore next 2 -- defensive fallback: traveler IDs in fixture data always exist in TRAVELERS */
+  const getName = (id: string) => travelers.find((t) => t.id === id)?.name ?? id;
+  const getInitials = (id: string) => travelers.find((t) => t.id === id)?.initials ?? id[0].toUpperCase();
+
+  return (
+    <div className="split-section">
+      <h3 className="split-heading">
+        Split · <em>who owes what</em>
+      </h3>
+      <div className="split-grid">
+        {splits.map((s) => {
+          const traveler = travelers.find((t) => t.id === s.travelerId);
+          const balance = s.paid - s.share;
+          const isOwed = balance > 0.01;
+          const isOwes = balance < -0.01;
+          const barColor = isOwed ? 'oklch(58% 0.11 150)' : isOwes ? 'oklch(60% 0.15 25)' : 'var(--accent)';
+          const balColor = isOwed ? 'oklch(45% 0.11 150)' : isOwes ? 'oklch(50% 0.15 25)' : 'var(--ink-3)';
+          /* v8 ignore next -- guard against zero share (paid/0 → Infinity) */
+          const maxBar = s.share * 1.5 || 1;
+          const paidPct = Math.min(100, (s.paid / maxBar) * 100);
+          const sharePct = Math.min(100, (s.share / maxBar) * 100);
+          /* v8 ignore next 2 -- fallback display values; travelerId always maps to a known traveler */
+          const displayInitials = traveler?.initials ?? '?';
+          const displayName = traveler?.name ?? s.travelerId;
+          return (
+            <div key={s.travelerId} className="split-card">
+              <div className="split-avatar">{displayInitials}</div>
+              <div className="split-info">
+                <div className="split-name">{displayName}</div>
+                <div className="split-amounts">Paid {fmtMoney(s.paid)} · share {fmtMoney(s.share)}</div>
+                <div className="split-bar-wrap">
+                  <div className="split-bar-track">
+                    <div className="split-bar-fill" style={{ width: `${paidPct}%`, background: barColor }} />
+                    <div className="split-bar-marker" style={{ left: `${sharePct}%` }} />
+                  </div>
+                </div>
+              </div>
+              <div className="split-balance" style={{ color: balColor }}>
+                <div className="split-balance-amount">
+                  {isOwed ? '+' : isOwes ? '-' : '±'}{fmtMoney(Math.abs(balance))}
+                </div>
+                <div className="split-balance-label">
+                  {isOwed ? 'gets back' : isOwes ? 'owes' : 'even'}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {settle.length > 0 && (
+        <div className="settle-up">
+          <div className="settle-up-label">Settle up</div>
+          {settle.map((row) => (
+            <div key={`${row.fromId}-${row.toId}`} className="settle-row">
+              <div className="settle-avatars">
+                <span className="settle-av settle-av-from">{getInitials(row.fromId)}</span>
+                <span className="settle-connector">owes</span>
+                <span className="settle-av settle-av-to">{getInitials(row.toId)}</span>
+                <span className="settle-names">{getName(row.fromId)} → {getName(row.toId)}</span>
+              </div>
+              <div className="settle-amount">{fmtMoney(row.amount)}</div>
+              <button
+                className="btn"
+                onClick={() => setDismissed((prev) => new Set([...prev, `${row.fromId}-${row.toId}`]))}
+              >
+                Mark paid
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }

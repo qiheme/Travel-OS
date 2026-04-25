@@ -198,6 +198,10 @@ export const TRIP_DETAILS: Record<string, TripDetail> = {
       { type: 'passport', title: 'Maren passport', expiry: '2027-08-02' },
       { type: 'confirmation', title: 'TAP e-ticket.pdf' },
     ],
+    splits: [
+      { travelerId: 't1', paid: 1200, share: 710 },
+      { travelerId: 't2', paid: 220, share: 710 },
+    ],
   },
 
   'tr-iceland': {
@@ -256,6 +260,12 @@ export const TRIP_DETAILS: Record<string, TripDetail> = {
       { type: 'confirmation', title: 'Icelandair e-tickets.pdf' },
       { type: 'confirmation', title: 'Blue Car Rental contract.pdf' },
     ],
+    splits: [
+      { travelerId: 't1', paid: 4800, share: 1960 },
+      { travelerId: 't2', paid: 2100, share: 1960 },
+      { travelerId: 't3', paid: 640, share: 1960 },
+      { travelerId: 't4', paid: 300, share: 1960 },
+    ],
   },
 
   'tr-mexico': {
@@ -312,6 +322,10 @@ export const TRIP_DETAILS: Record<string, TripDetail> = {
       { type: 'passport', title: 'Maren passport', expiry: '2027-08-02' },
       { type: 'confirmation', title: 'Aeromexico e-ticket.pdf' },
       { type: 'confirmation', title: 'Casa Antonieta reservation.pdf' },
+    ],
+    splits: [
+      { travelerId: 't1', paid: 2800, share: 1840 },
+      { travelerId: 't2', paid: 880, share: 1840 },
     ],
   },
 };
