@@ -22,11 +22,13 @@ interface ParsedResult {
 function isValidBody(b: unknown): b is IngestBody {
   if (!b || typeof b !== 'object') return false;
   const o = b as Record<string, unknown>;
+  if (typeof o['userId'] !== 'string' || !o['raw']) return false;
+  const r = o['raw'] as Record<string, unknown>;
   return (
-    typeof o['userId'] === 'string' &&
-    !!o['raw'] &&
-    typeof (o['raw'] as Record<string, unknown>)['subject'] === 'string' &&
-    typeof (o['raw'] as Record<string, unknown>)['text'] === 'string'
+    typeof r['subject'] === 'string' &&
+    typeof r['text'] === 'string' &&
+    typeof r['from'] === 'string' &&
+    typeof r['receivedAt'] === 'string'
   );
 }
 
@@ -104,7 +106,7 @@ export function createIngestHandler({
 
     const confidence = parsed.suggested_confidence ?? 0;
     const status = confidence >= 0.5 ? 'parsed' : 'needs_review';
-    await supabase.from('inbox_items').update({
+    const { error: updateError } = await supabase.from('inbox_items').update({
       status,
       vendor: parsed.vendor,
       parsed: {
@@ -117,6 +119,9 @@ export function createIngestHandler({
       suggested_trip: parsed.suggested_trip,
       suggested_confidence: confidence,
     }).eq('id', id);
+    if (updateError) {
+      return Response.json({ error: 'Failed to persist parsed item', id }, { status: 500 });
+    }
 
     return Response.json({ id }, { status: 200 });
   };

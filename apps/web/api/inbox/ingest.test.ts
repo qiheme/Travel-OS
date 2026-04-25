@@ -368,6 +368,44 @@ describe('ingest handler', () => {
     expect(capturedUpdatePayload).toMatchObject({ status: 'needs_review' });
   });
 
+  it('returns 500 when the parsed-row update fails', async () => {
+    const supabase = makeSupabaseMock([]);
+    const anthropic = makeAnthropicMock(VALID_PARSED_JSON);
+    supabase.from.mockImplementation((table: string) => {
+      if (table === 'trips') {
+        return { select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ neq: vi.fn().mockResolvedValue({ data: [], error: null }) }) }) };
+      }
+      return {
+        insert: vi.fn().mockResolvedValue({ error: null }),
+        update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: new Error('update failed') }) }),
+      };
+    });
+    const handler = createIngestHandler({ anthropic: anthropic as never, supabase: supabase as never });
+    const res = await handler(makeRequest('POST', SECRET, VALID_BODY));
+    expect(res.status).toBe(500);
+    const body = await res.json() as { error: string; id: string };
+    expect(body.error).toBe('Failed to persist parsed item');
+    expect(typeof body.id).toBe('string');
+  });
+
+  it('rejects when raw.from is missing', async () => {
+    const handler = createIngestHandler({ anthropic: makeAnthropicMock(VALID_PARSED_JSON) as never, supabase: makeSupabaseMock() as never });
+    const res = await handler(makeRequest('POST', SECRET, { userId: 'u1', source: 'email', raw: { subject: 's', text: 't', receivedAt: '2026-04-25' } }));
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects when raw.receivedAt is missing', async () => {
+    const handler = createIngestHandler({ anthropic: makeAnthropicMock(VALID_PARSED_JSON) as never, supabase: makeSupabaseMock() as never });
+    const res = await handler(makeRequest('POST', SECRET, { userId: 'u1', source: 'email', raw: { subject: 's', text: 't', from: 'f@f.com' } }));
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects when userId is not a string', async () => {
+    const handler = createIngestHandler({ anthropic: makeAnthropicMock(VALID_PARSED_JSON) as never, supabase: makeSupabaseMock() as never });
+    const res = await handler(makeRequest('POST', SECRET, { userId: 42, source: 'email', raw: { subject: 's', text: 't', from: 'f@f.com', receivedAt: '2026-04-25' } }));
+    expect(res.status).toBe(400);
+  });
+
   it('uses "Parse error" fallback note when a non-Error is thrown', async () => {
     const throwingAnthropic: MockAnthropic = {
       // eslint-disable-next-line prefer-promise-reject-errors
