@@ -57,3 +57,12 @@ When addressing feedback on a pull request:
 - CSS via `styles.css` using the existing CSS-variable design tokens (`--accent`, `--ink`, `--surface`, …)
 - No new dependencies without discussion
 - Commit messages: `type(#issue): short description` (e.g. `feat(#7): add AddTripModal wizard`)
+
+## README
+
+Keep `README.md` current. When a plan includes any of the following, update the README as part of the same PR:
+
+- New user-facing features or removed features
+- Changes to setup steps, environment variables, or scripts
+- Changes to the architecture or project layout
+- New dependencies added after discussion

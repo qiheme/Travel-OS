@@ -38,3 +38,12 @@ When addressing feedback on a pull request:
 - Styles via CSS variables in `styles.css` — no inline colours or hardcoded pixel values outside the design token set
 - Commit format: `type(#issue): description` (e.g. `fix(#5): correct booking status toggle`)
 - No new `npm` packages without discussion
+
+## README
+
+Keep `README.md` current. When a suggestion or change involves any of the following, include a README update in the same PR:
+
+- New or removed user-facing features
+- Changes to setup, environment variables, or npm scripts
+- Architectural changes or project layout shifts
+- New packages added after discussion
