@@ -85,12 +85,19 @@ export type TripDocument = {
   expiry?: string | null;
 };
 
+export type TripSplit = {
+  travelerId: string;
+  paid: number;
+  share: number;
+};
+
 export type TripDetail = {
   itinerary: ItineraryDay[];
   bookings: Booking[];
   budget_breakdown: BudgetLine[];
   packing: PackingItem[];
   documents: TripDocument[];
+  splits?: TripSplit[];
 };
 
 export type Insight = {

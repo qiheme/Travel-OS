@@ -156,12 +156,33 @@ describe('fetchTripDetails', () => {
   it('returns a Record keyed by trip_id', async () => {
     const row = {
       trip_id: 'tr-1', itinerary: [], bookings: [],
-      budget_breakdown: [], packing: [], documents: [],
+      budget_breakdown: [], packing: [], documents: [], splits: null,
     };
     mockFrom.mockReturnValue(makeChain({ data: [row], error: null }));
     const details = await fetchTripDetails('u1');
     expect(details['tr-1']).toBeDefined();
     expect(details['tr-1'].bookings).toEqual([]);
+  });
+
+  it('includes splits when present in DB row', async () => {
+    const splits = [{ travelerId: 't1', paid: 1000, share: 500 }];
+    const row = {
+      trip_id: 'tr-1', itinerary: [], bookings: [],
+      budget_breakdown: [], packing: [], documents: [], splits,
+    };
+    mockFrom.mockReturnValue(makeChain({ data: [row], error: null }));
+    const details = await fetchTripDetails('u1');
+    expect(details['tr-1'].splits).toEqual(splits);
+  });
+
+  it('returns undefined splits when DB row has null splits', async () => {
+    const row = {
+      trip_id: 'tr-1', itinerary: [], bookings: [],
+      budget_breakdown: [], packing: [], documents: [], splits: null,
+    };
+    mockFrom.mockReturnValue(makeChain({ data: [row], error: null }));
+    const details = await fetchTripDetails('u1');
+    expect(details['tr-1'].splits).toBeUndefined();
   });
 
   it('returns empty object on error', async () => {
@@ -264,6 +285,18 @@ describe('upsertTripDetail', () => {
     );
   });
 
+  it('includes splits in upsert payload when present', async () => {
+    const chain = makeChain({ data: null, error: null });
+    mockFrom.mockReturnValue(chain);
+    const splits = [{ travelerId: 't1', paid: 500, share: 500 }];
+    const detail: TripDetail = { itinerary: [], bookings: [], budget_breakdown: [], packing: [], documents: [], splits };
+    await upsertTripDetail('u1', 'tr-1', detail);
+    expect(chain.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ splits }),
+      expect.any(Object),
+    );
+  });
+
   it('swallows errors silently', async () => {
     mockFrom.mockReturnValue(makeChain({ data: null, error: new Error('fail') }));
     const detail: TripDetail = { itinerary: [], bookings: [], budget_breakdown: [], packing: [], documents: [] };
@@ -350,5 +383,17 @@ describe('seedFromFixtures', () => {
     await seedFromFixtures('u1', seedData);
     // from() only called once (the hasSeededData check) — no upserts
     expect(mockFrom).toHaveBeenCalledTimes(1);
+  });
+
+  it('seeds splits when present in tripDetails', async () => {
+    const chain = makeChain({ data: null, error: null, count: 0 });
+    mockFrom.mockReturnValue(chain);
+    const splits = [{ travelerId: 't1', paid: 1200, share: 710 }];
+    const detailWithSplits: TripDetail = { itinerary: [], bookings: [], budget_breakdown: [], packing: [], documents: [], splits };
+    await seedFromFixtures('u1', { ...seedData, tripDetails: { 'tr-1': detailWithSplits } });
+    expect(chain.upsert).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.objectContaining({ splits })]),
+      expect.any(Object),
+    );
   });
 });
