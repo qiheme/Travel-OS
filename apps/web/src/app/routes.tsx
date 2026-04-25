@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Link, NavLink, Outlet, useLocation, useParams } from 'react-router-dom';
+import { Link, NavLink, Outlet, redirect, useLocation, useParams } from 'react-router-dom';
+import { getSession } from '../lib/db';
 import { BOOKING_ICONS, Icon } from '../components/Icon';
 import { ArchiveDashboard } from '../components/ArchiveDashboard';
 import { CalendarDashboard } from '../components/CalendarDashboard';
@@ -63,6 +64,12 @@ const SOURCE_LABELS: Record<BookingSource | 'unknown', string> = {
 
 // No-op kept for router.tsx compatibility; AppLayout reads from AppContext instead.
 export const tripsLoader = () => ({});
+
+export async function authGuardLoader() {
+  const session = await getSession();
+  if (!session) return redirect('/login');
+  return {};
+}
 
 export function localDateLabel(utcDate: Date): string {
   return new Date(utcDate.getUTCFullYear(), utcDate.getUTCMonth(), utcDate.getUTCDate())

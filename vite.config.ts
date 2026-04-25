@@ -21,6 +21,7 @@ export default defineConfig({
         'apps/web/src/lib/types.ts',
         'apps/web/src/lib/data.ts',
         'apps/web/src/lib/utils.ts',
+        'apps/web/src/lib/supabase.ts',
         'apps/web/src/app/AppContext.tsx',
       ]
     }

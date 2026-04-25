@@ -6,8 +6,9 @@ import {
   InboxPage,
   PipelinePage,
   TripDetailPage,
-  tripsLoader
+  authGuardLoader,
 } from './routes';
+import { Login } from './Login';
 
 export const router = createBrowserRouter([
   {
@@ -15,9 +16,13 @@ export const router = createBrowserRouter([
     element: <Navigate to="/app/pipeline" replace />
   },
   {
+    path: '/login',
+    element: <Login />,
+  },
+  {
     path: '/app',
     element: <AppLayout />,
-    loader: tripsLoader,
+    loader: authGuardLoader,
     children: [
       {
         index: true,

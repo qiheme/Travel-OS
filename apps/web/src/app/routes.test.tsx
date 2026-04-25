@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { TODAY, TRIPS, TRIP_DETAILS } from '../lib/data';
 import { AppProvider } from './AppContext';
 import {
@@ -10,10 +10,27 @@ import {
   InboxPage,
   PipelinePage,
   TripDetailPage,
+  authGuardLoader,
   greeting,
   localDateLabel,
   tripsLoader
 } from './routes';
+
+vi.mock('../lib/db', () => ({
+  getSession: vi.fn(),
+  subscribeAuthChange: vi.fn().mockReturnValue({ unsubscribe: vi.fn() }),
+  hasSeededData: vi.fn(),
+  seedFromFixtures: vi.fn(),
+  fetchTrips: vi.fn(),
+  fetchTripDetails: vi.fn(),
+  fetchInsights: vi.fn(),
+  fetchInboxItems: vi.fn(),
+  upsertTrip: vi.fn(),
+  upsertTripDetail: vi.fn(),
+  deleteInsight: vi.fn(),
+  deleteInboxItem: vi.fn(),
+}));
+import { getSession } from '../lib/db';
 
 const renderAt = (path: string, tripPath = 'trip/:tripId') => {
   return render(
@@ -269,5 +286,18 @@ describe('route components', () => {
       TRIPS.splice(TRIPS.findIndex((trip) => trip.id === customTrip.id), 1);
       TRIPS.splice(TRIPS.findIndex((trip) => trip.id === oneDayTrip.id), 1);
     }
+  });
+});
+
+describe('authGuardLoader', () => {
+  it('returns {} when a session exists', async () => {
+    vi.mocked(getSession).mockResolvedValue({ user: { id: 'u1' } } as Awaited<ReturnType<typeof getSession>>);
+    expect(await authGuardLoader()).toEqual({});
+  });
+
+  it('returns a redirect Response when no session', async () => {
+    vi.mocked(getSession).mockResolvedValue(null);
+    const result = await authGuardLoader();
+    expect(result).toBeInstanceOf(Response);
   });
 });
